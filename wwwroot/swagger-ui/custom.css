@@ -1,0 +1,37 @@
+/* Arabic RTL Support for Swagger UI */
+.swagger-ui {
+    font-family: 'Segoe UI', 'Dubai', 'Tahoma', Arial, sans-serif;
+}
+
+.swagger-ui .info .title {
+    direction: ltr;
+}
+
+.swagger-ui .info .description {
+    direction: ltr;
+    text-align: left;
+}
+
+.swagger-ui .opblock .opblock-summary-description,
+.swagger-ui .opblock .opblock-description {
+    direction: rtl;
+    text-align: right;
+}
+
+.swagger-ui .parameter__name,
+.swagger-ui .response-col_description {
+    direction: rtl;
+    text-align: right;
+}
+
+/* Example values in Arabic */
+.swagger-ui .model-example,
+.swagger-ui .highlight-code {
+    direction: ltr;
+    text-align: left;
+}
+
+/* Arabic text in examples */
+.swagger-ui .example .example-select {
+    direction: rtl;
+}
