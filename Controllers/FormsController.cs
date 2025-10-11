@@ -8,7 +8,7 @@ namespace DynamicForm.Controllers
     [ApiController]
     [Route("api/[controller]")]
     [Produces("application/json")]
-    [Tags("Forms Management - إدارة النماذج")]
+    [Tags("Forms Management")]
     public class FormsController : ControllerBase
     {
         private readonly IFormService _formService;
@@ -19,7 +19,7 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        ///     Get all active forms - الحصول على جميع النماذج النشطة
+        ///     Get all active forms
         /// </summary>
         /// <response code="200">Returns the list of forms - إرجاع قائمة النماذج</response>
         /// <response code="500">Server error - خطأ في الخادم</response>
@@ -57,9 +57,9 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        ///     Get specific form by ID - الحصول على نموذج محدد بالمعرف
+        ///     Get specific form by ID
         /// </summary>
-        /// <param name="id">Form ID - معرف النموذج</param>
+        /// <param name="id">Form ID </param>
         /// <response code="200">Returns the form details - إرجاع تفاصيل النموذج</response>
         /// <response code="404">Form not found - النموذج غير موجود</response>
         /// <response code="500">Server error - خطأ في الخادم</response>
@@ -106,17 +106,17 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        ///     Submit form data - إرسال بيانات النموذج
+        ///     Submit form data
         /// </summary>
         /// <param name="id">Form ID - معرف النموذج</param>
-        /// <param name="submitFormDto">Form submission data - بيانات إرسال النموذج</param>
+        /// <param name="createFormDto">Form submission data - بيانات إرسال النموذج</param>
         /// <response code="201">Form submitted successfully - تم إرسال النموذج بنجاح</response>
         /// <response code="400">Validation error or missing required fields - خطأ في التحقق أو حقول مطلوبة مفقودة</response>
         /// <response code="404">Form not found - النموذج غير موجود</response>
         /// <response code="500">Server error - خطأ في الخادم</response>
         [HttpPost]
         [SwaggerOperation(
-            Summary = "Submit form data - إرسال بيانات النموذج",
+            Summary = "Submit form data ",
             Description = "Submits user data for a specific form",
             OperationId = "SubmitForm"
         )]
@@ -160,7 +160,6 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        ///     تحديث نموذج موجود
         ///     Update existing form
         /// </summary>
         [HttpPut("{id}")]
@@ -208,7 +207,6 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        ///     حذف نموذج (إلغاء تفعيل)
         ///     Delete form (soft delete)
         /// </summary>
         [HttpDelete("{id}")]
@@ -245,7 +243,6 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        ///     إرسال بيانات النموذج
         ///     Submit form data
         /// </summary>
         [HttpPost("{id}/submit")]

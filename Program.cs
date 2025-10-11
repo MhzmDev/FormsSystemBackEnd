@@ -65,9 +65,6 @@ builder.Services.AddSwaggerGen(c =>
         Type = SecuritySchemeType.Http,
         Scheme = "bearer"
     });
-
-    // Custom operation ordering
-    c.OrderActionsBy(apiDesc => $"{apiDesc.ActionDescriptor.RouteValues["controller"]}_{apiDesc.HttpMethod}");
 });
 
 var app = builder.Build();
@@ -113,18 +110,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Dynamic Forms API v1");
-        c.DocumentTitle = "Dynamic Forms API - واجهة النماذج الديناميكية";
+        c.DocumentTitle = "Dynamic Forms API";
         c.RoutePrefix = "swagger"; // Available at /swagger
-
-        // Enhanced UI settings
-        c.DefaultModelExpandDepth(2);
-        c.DefaultModelsExpandDepth(-1);
-        c.DisplayOperationId();
-        c.DisplayRequestDuration();
-        c.EnableDeepLinking();
-        c.EnableFilter();
-        c.ShowExtensions();
-        c.EnableValidator();
     });
 }
 

@@ -17,8 +17,7 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        /// الحصول على جميع المرسلات (عبر جميع النماذج)
-        /// Get all submissions across all forms
+        ///     Get all submissions across all forms
         /// </summary>
         [HttpGet]
         public async Task<ActionResult<PagedResult<FormSubmissionSummaryDto>>> GetAllSubmissions(
@@ -31,6 +30,7 @@ namespace DynamicForm.Controllers
             try
             {
                 var submissions = await _submissionService.GetAllSubmissionsAsync(page, pageSize, fromDate, toDate, status);
+
                 return Ok(new ApiResponse<PagedResult<FormSubmissionSummaryDto>>
                 {
                     Success = true,
@@ -50,8 +50,7 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        /// الحصول على مرسلة محددة بالتفصيل
-        /// Get specific submission with full details
+        ///     Get specific submission with full details
         /// </summary>
         [HttpGet("{id}", Name = "GetSubmissionById")]
         public async Task<ActionResult<FormSubmissionResponseDto>> GetSubmission(int id)
@@ -59,6 +58,7 @@ namespace DynamicForm.Controllers
             try
             {
                 var submission = await _submissionService.GetSubmissionByIdAsync(id);
+
                 if (submission == null)
                 {
                     return NotFound(new ApiResponse<object>
@@ -87,8 +87,7 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        /// تحديث حالة المرسلة
-        /// Update submission status
+        ///     Update submission status
         /// </summary>
         [HttpPatch("{id}/status")]
         public async Task<ActionResult> UpdateSubmissionStatus(int id, [FromBody] UpdateStatusDto updateStatusDto)
@@ -96,6 +95,7 @@ namespace DynamicForm.Controllers
             try
             {
                 var result = await _submissionService.UpdateSubmissionStatusAsync(id, updateStatusDto.Status);
+
                 if (!result)
                 {
                     return NotFound(new ApiResponse<object>
@@ -123,8 +123,7 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        /// حذف مرسلة
-        /// Delete submission (soft delete)
+        ///     Delete submission (soft delete)
         /// </summary>
         [HttpDelete("{id}")]
         public async Task<ActionResult> DeleteSubmission(int id)
@@ -132,6 +131,7 @@ namespace DynamicForm.Controllers
             try
             {
                 var result = await _submissionService.DeleteSubmissionAsync(id);
+
                 if (!result)
                 {
                     return NotFound(new ApiResponse<object>
