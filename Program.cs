@@ -102,18 +102,32 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
+//// Configure the HTTP request pipeline.
+//if (app.Environment.IsDevelopment())
+//{
+//    app.UseSwagger();
 
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Dynamic Forms API v1");
-        c.DocumentTitle = "Dynamic Forms API";
-        c.RoutePrefix = "swagger"; // Available at /swagger
-    });
-}
+//    app.UseSwaggerUI(c =>
+//    {
+//        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Dynamic Forms API v1");
+//        c.DocumentTitle = "Dynamic Forms API";
+//        c.RoutePrefix = "swagger"; // Available at /swagger
+//    });
+//}
+
+// Enable static files to serve wwwroot content (including your custom CSS)
+app.UseStaticFiles();
+
+// Configure Swagger for ALL environments
+app.UseSwagger();
+
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Dynamic Forms API v1");
+    c.DocumentTitle = "Dynamic Forms API";
+    c.RoutePrefix = "swagger"; // Available at /swagger
+    c.InjectStylesheet("/swagger-ui/custom.css"); // Use your custom CSS
+});
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
