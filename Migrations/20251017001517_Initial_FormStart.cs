@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace DynamicForm.Migrations
 {
     /// <inheritdoc />
-    public partial class Initia_CreateTheForm : Migration
+    public partial class Initial_FormStart : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -89,6 +89,10 @@ namespace DynamicForm.Migrations
                     SubmissionId = table.Column<int>(type: "int", nullable: false),
                     FieldId = table.Column<int>(type: "int", nullable: false),
                     FieldValue = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false),
+                    FieldNameAtSubmission = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    FieldTypeAtSubmission = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    LabelAtSubmission = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    OptionsAtSubmission = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true),
                     CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
@@ -111,23 +115,21 @@ namespace DynamicForm.Migrations
             migrationBuilder.InsertData(
                 table: "Forms",
                 columns: new[] { "FormId", "CreatedBy", "CreatedDate", "Description", "IsActive", "ModifiedDate", "Name" },
-                values: new object[] { 1, "النظام", new DateTime(2025, 10, 10, 13, 14, 7, 562, DateTimeKind.Utc).AddTicks(2326), "نموذج لجمع البيانات الشخصية الأساسية", true, null, "نموذج البيانات الشخصية" });
+                values: new object[] { 1, "النظام", new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "الحقول الإلزامية", true, null, "نموذج البيانات الأساسية" });
 
             migrationBuilder.InsertData(
                 table: "FormFields",
                 columns: new[] { "FieldId", "DisplayOrder", "FieldName", "FieldType", "FormId", "IsActive", "IsRequired", "Label", "Options", "ValidationRules" },
                 values: new object[,]
                 {
-                    { 1, 1, "fullName", "text", 1, true, true, "الاسم الكامل", null, null },
-                    { 2, 2, "age", "text", 1, true, true, "العمر", null, "{\"min\":1,\"max\":120,\"type\":\"number\"}" },
-                    { 3, 3, "birthDate", "date", 1, true, true, "تاريخ الميلاد", null, null },
-                    { 4, 4, "nationalId", "text", 1, true, true, "رقم الهوية الوطنية", null, null },
-                    { 5, 5, "nationalIdType", "dropdown", 1, true, true, "نوع الهوية", "[\"\\u0628\\u0637\\u0627\\u0642\\u0629 \\u0647\\u0648\\u064A\\u0629 \\u0648\\u0637\\u0646\\u064A\\u0629\",\"\\u062C\\u0648\\u0627\\u0632 \\u0633\\u0641\\u0631\",\"\\u0631\\u062E\\u0635\\u0629 \\u0642\\u064A\\u0627\\u062F\\u0629\",\"\\u0628\\u0637\\u0627\\u0642\\u0629 \\u0625\\u0642\\u0627\\u0645\\u0629\"]", null },
-                    { 6, 6, "phoneNumber", "text", 1, true, true, "رقم الهاتف", null, "{\"pattern\":\"^[0-9\\u002B\\\\-\\\\s]\\u002B$\"}" },
-                    { 7, 7, "email", "email", 1, true, false, "البريد الإلكتروني", null, null },
-                    { 8, 8, "address", "text", 1, true, true, "العنوان", null, null },
-                    { 9, 9, "governorate", "dropdown", 1, true, true, "المنطقة/المحافظة", "[\"\\u0627\\u0644\\u0631\\u064A\\u0627\\u0636\",\"\\u0645\\u0643\\u0629 \\u0627\\u0644\\u0645\\u0643\\u0631\\u0645\\u0629\",\"\\u0627\\u0644\\u0645\\u062F\\u064A\\u0646\\u0629 \\u0627\\u0644\\u0645\\u0646\\u0648\\u0631\\u0629\",\"\\u0627\\u0644\\u0642\\u0635\\u064A\\u0645\",\"\\u0627\\u0644\\u0645\\u0646\\u0637\\u0642\\u0629 \\u0627\\u0644\\u0634\\u0631\\u0642\\u064A\\u0629\",\"\\u0639\\u0633\\u064A\\u0631\",\"\\u062A\\u0628\\u0648\\u0643\",\"\\u062D\\u0627\\u0626\\u0644\",\"\\u0627\\u0644\\u062D\\u062F\\u0648\\u062F \\u0627\\u0644\\u0634\\u0645\\u0627\\u0644\\u064A\\u0629\",\"\\u062C\\u0627\\u0632\\u0627\\u0646\",\"\\u0646\\u062C\\u0631\\u0627\\u0646\",\"\\u0627\\u0644\\u0628\\u0627\\u062D\\u0629\",\"\\u0627\\u0644\\u062C\\u0648\\u0641\"]", null },
-                    { 10, 10, "maritalStatus", "dropdown", 1, true, false, "الحالة الاجتماعية", "[\"\\u0623\\u0639\\u0632\\u0628\",\"\\u0645\\u062A\\u0632\\u0648\\u062C\",\"\\u0645\\u0637\\u0644\\u0642\",\"\\u0623\\u0631\\u0645\\u0644\"]", null }
+                    { 1, 1, "id", "text", 1, true, true, "المعرف", null, "{\"type\":\"number\",\"readOnly\":true}" },
+                    { 2, 2, "referenceNo", "text", 1, true, true, "رقم المرجع", null, null },
+                    { 3, 3, "customerName", "text", 1, true, true, "اسم العميل", null, null },
+                    { 4, 4, "phoneNumber", "text", 1, true, true, "رقم الهاتف", null, "{\"pattern\":\"^[0-9\\u002B\\\\-\\\\s]\\u002B$\"}" },
+                    { 5, 5, "salary", "text", 1, true, true, "الراتب", null, "{\"type\":\"number\",\"min\":0}" },
+                    { 6, 6, "monthlySpent", "text", 1, true, true, "الالتزامات الشهريه", null, "{\"type\":\"number\",\"min\":0}" },
+                    { 7, 7, "status", "dropdown", 1, true, true, "الحالة", "[\"\\u062C\\u062F\\u064A\\u062F\",\"\\u0642\\u064A\\u062F \\u0627\\u0644\\u0645\\u0631\\u0627\\u062C\\u0639\\u0629\",\"\\u0645\\u0642\\u0628\\u0648\\u0644\",\"\\u0645\\u0631\\u0641\\u0648\\u0636\",\"\\u0645\\u0643\\u062A\\u0645\\u0644\"]", null },
+                    { 8, 8, "creationDate", "date", 1, true, true, "تاريخ الإنشاء", null, "{\"readOnly\":true}" }
                 });
 
             migrationBuilder.CreateIndex(

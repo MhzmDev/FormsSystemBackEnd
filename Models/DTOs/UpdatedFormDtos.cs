@@ -1,12 +1,5 @@
 namespace DynamicForm.Models.DTOs
 {
-    // Remove FormId from submission DTO since it comes from route
-    public class SubmitFormDto
-    {
-        public string? SubmittedBy { get; set; }
-        public Dictionary<string, string> Values { get; set; } = new Dictionary<string, string>();
-    }
-
     // Separate DTO for form updates
     public class UpdateFormDto
     {
@@ -15,28 +8,15 @@ namespace DynamicForm.Models.DTOs
         public List<CreateFormFieldDto> Fields { get; set; } = new List<CreateFormFieldDto>();
     }
 
-    // Summary DTO for listing submissions
-    public class FormSubmissionSummaryDto
+    // New DTO for updating individual form fields
+    public class UpdateFormFieldDto
     {
-        public int SubmissionId { get; set; }
-        public int FormId { get; set; }
-        public string FormName { get; set; } = string.Empty;
-        public DateTime SubmittedDate { get; set; }
-        public string Status { get; set; } = string.Empty;
-        public string? SubmittedBy { get; set; }
-        public string Preview { get; set; } = string.Empty; // Summary of key values
-    }
-
-    // Pagination support
-    public class PagedResult<T>
-    {
-        public IEnumerable<T> Items { get; set; } = new List<T>();
-        public int TotalCount { get; set; }
-        public int Page { get; set; }
-        public int PageSize { get; set; }
-        public int TotalPages { get; set; }
-        public bool HasNextPage { get; set; }
-        public bool HasPreviousPage { get; set; }
+        public string Label { get; set; } = string.Empty;
+        public bool IsRequired { get; set; }
+        public bool IsActive { get; set; } = true;
+        public List<string>? Options { get; set; }
+        public int DisplayOrder { get; set; }
+        public string? ValidationRules { get; set; }
     }
 
     // Status update DTO

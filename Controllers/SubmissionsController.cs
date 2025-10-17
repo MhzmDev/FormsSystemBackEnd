@@ -19,7 +19,15 @@ namespace DynamicForm.Controllers
         /// <summary>
         ///     Get all submissions across all forms
         /// </summary>
-        [HttpGet]
+        /// <param name="fromDate">From Date</param>
+        /// <param name="toDate">To Date</param>
+        /// <param name="status">Status filter</param>
+        /// <param name="page">Page number (default 1)</param>
+        /// <param name="pageSize">Page size (default 10)</param>
+        [HttpGet("GetAllSubmissions")]
+        [ProducesDefaultResponseType(typeof(ApiResponse<PagedResult<FormSubmissionSummaryDto>>))]
+        [ProducesResponseType(typeof(ApiResponse<object>), 500)]
+        [ProducesResponseType(typeof(ApiResponse<object>), 404)]
         public async Task<ActionResult<PagedResult<FormSubmissionSummaryDto>>> GetAllSubmissions(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10,
@@ -53,6 +61,10 @@ namespace DynamicForm.Controllers
         ///     Get specific submission with full details
         /// </summary>
         [HttpGet("{id}", Name = "GetSubmissionById")]
+        [ProducesDefaultResponseType(typeof(ApiResponse<FormSubmissionResponseDto>))]
+        [ProducesResponseType(typeof(ApiResponse<object>), 500)]
+        [ProducesResponseType(typeof(ApiResponse<object>), 404)]
+        [ProducesResponseType(typeof(ApiResponse<FormSubmissionResponseDto>), 200)]
         public async Task<ActionResult<FormSubmissionResponseDto>> GetSubmission(int id)
         {
             try
@@ -89,7 +101,9 @@ namespace DynamicForm.Controllers
         /// <summary>
         ///     Update submission status
         /// </summary>
-        [HttpPatch("{id}/status")]
+        /// <param name="id">Submission Id</param>
+        /// <param name="updateStatusDto">Status update data</param>
+        [HttpPatch("{id}/status", Name = "UpdateSubmissionStatus")]
         public async Task<ActionResult> UpdateSubmissionStatus(int id, [FromBody] UpdateStatusDto updateStatusDto)
         {
             try
@@ -125,7 +139,8 @@ namespace DynamicForm.Controllers
         /// <summary>
         ///     Delete submission (soft delete)
         /// </summary>
-        [HttpDelete("{id}")]
+        /// <param name="id">Submission Id</param>
+        [HttpDelete("{id}", Name = "DeleteSubmission")]
         public async Task<ActionResult> DeleteSubmission(int id)
         {
             try

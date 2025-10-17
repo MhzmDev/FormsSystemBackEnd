@@ -25,9 +25,9 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new()
     {
-        Title = "Dynamic Forms API",
-        Version = "v1",
-        Description = @"Dynamic Form API",
+        Title = "Dynamic Forms API V2",
+        Version = "v2",
+        Description = @"Dynamic Form API, Please refer to Documentation for any inquiries.",
         Contact = new OpenApiContact
         {
             Name = "API Support",
@@ -124,11 +124,11 @@ app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Dynamic Forms API v1");
-    c.DocumentTitle = "Dynamic Forms API";
+    c.DocumentTitle = "Dynamic Forms API V2";
     c.RoutePrefix = "swagger"; // Available at /swagger
     c.InjectStylesheet("/swagger-ui/custom.css"); // Use your custom CSS
 });
-
+ 
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
