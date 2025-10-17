@@ -128,7 +128,7 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger"; // Available at /swagger
     c.InjectStylesheet("/swagger-ui/custom.css"); // Use your custom CSS
 });
-
+ 
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
