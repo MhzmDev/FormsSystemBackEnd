@@ -21,9 +21,6 @@ namespace DynamicForm.Controllers
         /// <summary>
         ///     Get currently active form
         /// </summary>
-        /// <response code="200">Returns the active form - إرجاع النموذج النشط</response>
-        /// <response code="404">No active form found - لا يوجد نموذج نشط</response>
-        /// <response code="500">Server error - خطأ في الخادم</response>
         [HttpGet("GetActiveForm")]
         [ProducesResponseType(typeof(ApiResponse<FormDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -97,9 +94,6 @@ namespace DynamicForm.Controllers
         ///     Get specific form by ID
         /// </summary>
         /// <param name="id">Form ID </param>
-        /// <response code="200">Returns the form details - إرجاع تفاصيل النموذج</response>
-        /// <response code="404">Form not found - النموذج غير موجود</response>
-        /// <response code="500">Server error - خطأ في الخادم</response>
         [HttpGet("GetFormByID/{id}")]
         [ProducesResponseType(typeof(ApiResponse<FormDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -141,9 +135,6 @@ namespace DynamicForm.Controllers
         ///     Create new form
         /// </summary>
         /// <param name="createFormDto">Form creation data - بيانات إنشاء النموذج</param>
-        /// <response code="201">Form created successfully - تم إنشاء النموذج بنجاح</response>
-        /// <response code="400">Validation error - خطأ في التحقق</response>
-        /// <response code="500">Server error - خطأ في الخادم</response>
         [HttpPost("CreateNewForm")]
         [ProducesResponseType(typeof(ApiResponse<FormDto>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -188,9 +179,6 @@ namespace DynamicForm.Controllers
         /// </summary>
         /// <param name="id">Form ID to update - معرف النموذج للتحديث</param>
         /// <param name="updateFormDto">Form update data - بيانات تحديث النموذج</param>
-        /// <response code="200">Form updated successfully - تم تحديث النموذج بنجاح</response>
-        /// <response code="404">Form not found - النموذج غير موجود</response>
-        /// <response code="500">Server Error - خطأ في الخادم</response>
         [HttpPut("UpdateForm/{id}")]
         [ProducesResponseType(typeof(ApiResponse<FormDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
@@ -299,6 +287,211 @@ namespace DynamicForm.Controllers
                         Success = true,
                         Message = "تم إرسال البيانات بنجاح",
                         Data = submission
+                    });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "حدث خطأ في النظام",
+                    Error = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
+        ///     Activate a specific form (deactivates all others)
+        /// </summary>
+        /// <param name="id">Form ID to activate</param>
+        [HttpPut("activateForm/{id}")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult> ActivateForm(int id)
+        {
+            try
+            {
+                var result = await _formService.ActivateFormAsync(id);
+
+                if (!result)
+                {
+                    return NotFound(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "النموذج غير موجود"
+                    });
+                }
+
+                return Ok(new ApiResponse<object>
+                {
+                    Success = true,
+                    Message = "تم تفعيل النموذج بنجاح. تم إلغاء تفعيل النماذج الأخرى."
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "حدث خطأ في النظام",
+                    Error = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
+        ///     Update a specific form field (custom fields only)
+        /// </summary>
+        /// <param name="formId">Form ID</param>
+        /// <param name="fieldId">Field ID to update</param>
+        /// <param name="updateFieldDto">Field update data</param>
+        [HttpPut("updateForm/{formId}/fields/{fieldId}")]
+        [ProducesResponseType(typeof(ApiResponse<FormFieldDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<FormFieldDto>> UpdateFormField(int formId, int fieldId, [FromBody] UpdateFormFieldDto updateFieldDto)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "البيانات المدخلة غير صحيحة",
+                        Errors = ModelState
+                    });
+                }
+
+                var field = await _formService.UpdateFormFieldAsync(formId, fieldId, updateFieldDto);
+
+                if (field == null)
+                {
+                    return NotFound(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "النموذج أو الحقل غير موجود"
+                    });
+                }
+
+                return Ok(new ApiResponse<FormFieldDto>
+                {
+                    Success = true,
+                    Message = "تم تحديث الحقل بنجاح",
+                    Data = field
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "حدث خطأ في النظام",
+                    Error = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
+        ///     Delete a specific form field (custom fields only)
+        /// </summary>
+        /// <param name="formId">Form ID</param>
+        /// <param name="fieldId">Field ID to delete</param>
+        [HttpDelete("deleteForm/{formId}/fields/{fieldId}")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult> DeleteFormField(int formId, int fieldId)
+        {
+            try
+            {
+                var result = await _formService.DeleteFormFieldAsync(formId, fieldId);
+
+                if (!result)
+                {
+                    return NotFound(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "النموذج أو الحقل غير موجود"
+                    });
+                }
+
+                return Ok(new ApiResponse<object>
+                {
+                    Success = true,
+                    Message = "تم حذف الحقل بنجاح"
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = ex.Message
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "حدث خطأ في النظام",
+                    Error = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
+        ///     Add a new field to an existing form
+        /// </summary>
+        /// <param name="formId">Form ID</param>
+        /// <param name="createFieldDto">Field creation data</param>
+        [HttpPost("addFormField/{formId}/fields")]
+        [ProducesResponseType(typeof(ApiResponse<FormFieldDto>), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<FormFieldDto>> AddFormField(int formId, [FromBody] CreateFormFieldDto createFieldDto)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "البيانات المدخلة غير صحيحة",
+                        Errors = ModelState
+                    });
+                }
+
+                var field = await _formService.AddFormFieldAsync(formId, createFieldDto);
+
+                return CreatedAtAction(nameof(GetForm), new { id = formId },
+                    new ApiResponse<FormFieldDto>
+                    {
+                        Success = true,
+                        Message = "تم إضافة الحقل بنجاح",
+                        Data = field
                     });
             }
             catch (ArgumentException ex)
