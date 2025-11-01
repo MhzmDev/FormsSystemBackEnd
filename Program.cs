@@ -67,6 +67,17 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(builder =>
+    {
+        builder.AllowCredentials()
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .WithExposedHeaders();
+    });
+});
+
 var app = builder.Build();
 
 // Auto-migrate database on startup
