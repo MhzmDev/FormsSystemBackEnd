@@ -1,8 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Azure;
 using DynamicForm.Data;
 using DynamicForm.Models;
 using DynamicForm.Models.DTOs;
 using DynamicForm.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Identity.Client;
 using System.Text.Json;
 
 namespace DynamicForm.Services
@@ -22,7 +24,10 @@ namespace DynamicForm.Services
                 .Include(f => f.FormFields.Where(ff => ff.IsActive))
                 .FirstOrDefaultAsync(f => f.FormId == formId && f.IsActive);
 
-            if (form == null) return null;
+            if (form == null)
+            {
+                return null;
+            }
 
             return new FormDto
             {
@@ -39,21 +44,40 @@ namespace DynamicForm.Services
                     Label = f.Label,
                     IsRequired = f.IsRequired,
                     DisplayOrder = f.DisplayOrder,
-                    Options = !string.IsNullOrEmpty(f.Options) ? 
-                        JsonSerializer.Deserialize<List<string>>(f.Options) : null
+                    Options = !string.IsNullOrEmpty(f.Options) ? JsonSerializer.Deserialize<List<string>>(f.Options) : null
                 }).ToList()
             };
         }
 
-        public async Task<IEnumerable<FormDto>> GetAllFormsAsync()
+        public async Task<PagedResult<FormDto>> GetAllFormsAsync(int pageIndex, int pageSize, bool? isActive)
         {
-            var forms = await _context.Forms
-                .Where(f => f.IsActive)
+            var query = _context.Forms
                 .Include(f => f.FormFields.Where(ff => ff.IsActive))
+                .AsQueryable();
+
+            // apply active filter if specified.
+            if (isActive.HasValue)
+            {
+                query = query.Where(f => f.IsActive == isActive.Value);
+            }
+
+            // get total count for pagination
+            var totalCount = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            // apply pagination
+            var forms = await query
                 .OrderByDescending(f => f.CreatedDate)
+                .Skip((pageIndex - 1) * pageSize)
+                .Take(pageSize)
                 .ToListAsync();
 
-            return forms.Select(form => new FormDto
+            //var forms = await _context.Forms
+            //    .Include(f => f.FormFields.Where(ff => ff.IsActive))
+            //    .OrderByDescending(f => f.CreatedDate)
+            //    .ToListAsync();
+
+            var formDtos = forms.Select(form => new FormDto
             {
                 FormId = form.FormId,
                 Name = form.Name,
@@ -68,56 +92,94 @@ namespace DynamicForm.Services
                     Label = f.Label,
                     IsRequired = f.IsRequired,
                     DisplayOrder = f.DisplayOrder,
-                    Options = !string.IsNullOrEmpty(f.Options) ? 
-                        JsonSerializer.Deserialize<List<string>>(f.Options) : null
+                    Options = !string.IsNullOrEmpty(f.Options) ? JsonSerializer.Deserialize<List<string>>(f.Options) : null
                 }).ToList()
             });
+
+            return new PagedResult<FormDto>
+            {
+                Items = formDtos,
+                TotalCount = totalCount,
+                Page = pageIndex,
+                PageSize = pageSize,
+                TotalPages = totalPages,
+                HasNextPage = pageIndex < totalPages,
+                HasPreviousPage = pageIndex > 1
+            };
         }
 
         public async Task<FormDto> CreateFormAsync(CreateFormDto createFormDto)
         {
-            var form = new Form
-            {
-                Name = createFormDto.Name,
-                Description = createFormDto.Description,
-                CreatedDate = DateTime.UtcNow,
-                CreatedBy = "المستخدم"
-            };
+            using var transaction = await _context.Database.BeginTransactionAsync();
 
-            _context.Forms.Add(form);
-            await _context.SaveChangesAsync();
-
-            foreach (var fieldDto in createFormDto.Fields)
+            try
             {
-                var field = new FormField
+                // Deactivate all existing forms
+                var existingForms = await _context.Forms.Where(f => f.IsActive).ToListAsync();
+
+                foreach (var existingForm in existingForms)
                 {
-                    FormId = form.FormId,
-                    FieldName = fieldDto.FieldName,
-                    FieldType = fieldDto.FieldType,
-                    Label = fieldDto.Label,
-                    IsRequired = fieldDto.IsRequired,
-                    DisplayOrder = fieldDto.DisplayOrder,
-                    Options = fieldDto.Options != null ? JsonSerializer.Serialize(fieldDto.Options) : null
+                    existingForm.IsActive = false;
+                    existingForm.ModifiedDate = DateTime.UtcNow;
+                }
+
+                // Create new active form
+                var form = new Form
+                {
+                    Name = createFormDto.Name,
+                    Description = createFormDto.Description,
+                    CreatedDate = DateTime.UtcNow,
+                    CreatedBy = "المستخدم",
+                    IsActive = true
                 };
 
-                _context.FormFields.Add(field);
-            }
+                _context.Forms.Add(form);
+                await _context.SaveChangesAsync();
 
-            await _context.SaveChangesAsync();
-            return await GetFormByIdAsync(form.FormId) ?? throw new InvalidOperationException("فشل في إنشاء النموذج");
+                foreach (var fieldDto in createFormDto.Fields)
+                {
+                    var field = new FormField
+                    {
+                        FormId = form.FormId,
+                        FieldName = fieldDto.FieldName,
+                        FieldType = fieldDto.FieldType,
+                        Label = fieldDto.Label,
+                        IsRequired = fieldDto.IsRequired,
+                        DisplayOrder = fieldDto.DisplayOrder,
+                        Options = fieldDto.Options != null ? JsonSerializer.Serialize(fieldDto.Options) : null,
+                        IsActive = true
+                    };
+
+                    _context.FormFields.Add(field);
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return await GetFormByIdAsync(form.FormId) ?? throw new InvalidOperationException("فشل في إنشاء النموذج");
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+
+                throw;
+            }
         }
 
         public async Task<FormDto?> UpdateFormAsync(int formId, UpdateFormDto updateFormDto)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
-            
+
             try
             {
                 var form = await _context.Forms
                     .Include(f => f.FormFields)
                     .FirstOrDefaultAsync(f => f.FormId == formId);
 
-                if (form == null) return null;
+                if (form == null)
+                {
+                    return null;
+                }
 
                 form.Name = updateFormDto.Name;
                 form.Description = updateFormDto.Description;
@@ -128,7 +190,7 @@ namespace DynamicForm.Services
                 foreach (var existingField in existingFields)
                 {
                     var updatedField = updateFormDto.Fields.FirstOrDefault(f => f.FieldName == existingField.FieldName);
-                    
+
                     if (updatedField != null)
                     {
                         existingField.Label = updatedField.Label;
@@ -172,6 +234,7 @@ namespace DynamicForm.Services
             catch
             {
                 await transaction.RollbackAsync();
+
                 throw;
             }
         }
@@ -179,10 +242,16 @@ namespace DynamicForm.Services
         public async Task<bool> DeleteFormAsync(int formId)
         {
             var form = await _context.Forms.FindAsync(formId);
-            if (form == null) return false;
+
+            if (form == null)
+            {
+                return false;
+            }
 
             form.IsActive = false;
+            form.ModifiedDate = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+
             return true;
         }
 
@@ -193,17 +262,22 @@ namespace DynamicForm.Services
                 .FirstOrDefaultAsync(f => f.FormId == formId && f.IsActive);
 
             if (form == null)
-                throw new ArgumentException("النموذج غير موجود");
+            {
+                throw new ArgumentException("النموذج غير موجود أو غير نشط");
+            }
 
             var requiredFields = form.FormFields.Where(f => f.IsRequired && f.IsActive).ToList();
+
             var missingFields = requiredFields
-                .Where(f => !submitFormDto.Values.ContainsKey(f.FieldName) || 
-                           string.IsNullOrWhiteSpace(submitFormDto.Values[f.FieldName]))
+                .Where(f => !submitFormDto.Values.ContainsKey(f.FieldName) ||
+                            string.IsNullOrWhiteSpace(submitFormDto.Values[f.FieldName]))
                 .Select(f => f.Label)
                 .ToList();
 
             if (missingFields.Any())
+            {
                 throw new ArgumentException($"الحقول التالية مطلوبة: {string.Join(", ", missingFields)}");
+            }
 
             var submission = new FormSubmission
             {
@@ -219,6 +293,7 @@ namespace DynamicForm.Services
             foreach (var value in submitFormDto.Values)
             {
                 var field = form.FormFields.FirstOrDefault(f => f.FieldName == value.Key);
+
                 if (field != null)
                 {
                     var submissionValue = new FormSubmissionValue
@@ -240,8 +315,79 @@ namespace DynamicForm.Services
             await _context.SaveChangesAsync();
 
             var submissionService = new SubmissionService(_context);
-            return await submissionService.GetSubmissionByIdAsync(submission.SubmissionId) ?? 
+
+            return await submissionService.GetSubmissionByIdAsync(submission.SubmissionId) ??
                    throw new InvalidOperationException("فشل في حفظ البيانات");
+        }
+
+        public async Task<FormDto?> ActivateFormAsync(int formId)
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                // Deactivate all existing forms
+                var existingForms = await _context.Forms.Where(f => f.IsActive).ToListAsync();
+
+                foreach (var existingForm in existingForms)
+                {
+                    existingForm.IsActive = false;
+                    existingForm.ModifiedDate = DateTime.UtcNow;
+                }
+
+                // Activate the specified form
+                var form = await _context.Forms.FindAsync(formId);
+
+                if (form == null)
+                {
+                    return null;
+                }
+
+                form.IsActive = true;
+                form.ModifiedDate = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return await GetFormByIdAsync(formId);
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+
+                throw;
+            }
+        }
+
+        public async Task<FormDto?> GetActiveFormAsync()
+        {
+            var form = await _context.Forms
+                .Include(f => f.FormFields.Where(ff => ff.IsActive))
+                .FirstOrDefaultAsync(f => f.IsActive);
+
+            if (form == null)
+            {
+                return null;
+            }
+
+            return new FormDto
+            {
+                FormId = form.FormId,
+                Name = form.Name,
+                Description = form.Description,
+                IsActive = form.IsActive,
+                CreatedDate = form.CreatedDate,
+                Fields = form.FormFields.OrderBy(f => f.DisplayOrder).Select(f => new FormFieldDto
+                {
+                    FieldId = f.FieldId,
+                    FieldName = f.FieldName,
+                    FieldType = f.FieldType,
+                    Label = f.Label,
+                    IsRequired = f.IsRequired,
+                    DisplayOrder = f.DisplayOrder,
+                    Options = !string.IsNullOrEmpty(f.Options) ? JsonSerializer.Deserialize<List<string>>(f.Options) : null
+                }).ToList()
+            };
         }
     }
 }
