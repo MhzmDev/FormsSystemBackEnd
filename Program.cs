@@ -71,10 +71,10 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(builder =>
     {
-        builder
-            .AllowAnyMethod()
+        builder.AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials()
+            .SetIsOriginAllowed(origin => true)
             .WithExposedHeaders();
     });
 });
@@ -141,6 +141,7 @@ app.UseSwaggerUI(c =>
     c.InjectStylesheet("/swagger-ui/custom.css"); // Use your custom CSS
 });
 
+app.UseCors();
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
