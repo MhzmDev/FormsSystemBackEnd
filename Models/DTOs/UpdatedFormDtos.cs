@@ -15,6 +15,13 @@ namespace DynamicForm.Models.DTOs
         public List<CreateFormFieldDto> Fields { get; set; } = new List<CreateFormFieldDto>();
     }
 
+    public class SubmissionValueSummaryDto
+    {
+        public string ArLabel { get; set; } = string.Empty;
+        public string EnLabel { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+    }
+
     // Summary DTO for listing submissions
     public class FormSubmissionSummaryDto
     {
@@ -25,6 +32,7 @@ namespace DynamicForm.Models.DTOs
         public string Status { get; set; } = string.Empty;
         public string? SubmittedBy { get; set; }
         public string Preview { get; set; } = string.Empty; // Summary of key values
+        public List<SubmissionValueSummaryDto> Values { get; set; } = new List<SubmissionValueSummaryDto>();
     }
 
     // Pagination support

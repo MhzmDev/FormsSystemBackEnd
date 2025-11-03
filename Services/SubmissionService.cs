@@ -1,7 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
-using DynamicForm.Data;
-using DynamicForm.Models.DTOs;
+﻿using DynamicForm.Data;
 using DynamicForm.Models;
+using DynamicForm.Models.DTOs;
+using Microsoft.EntityFrameworkCore;
+using System.Reflection.Metadata;
+using System.Text.RegularExpressions;
+using static Azure.Core.HttpHeader;
 
 namespace DynamicForm.Services
 {
@@ -61,13 +64,14 @@ namespace DynamicForm.Services
                 SubmittedDate = submission.SubmittedDate,
                 Status = submission.Status,
                 SubmittedBy = submission.SubmittedBy,
-                Preview = CreateSubmissionPreview(submission.FormSubmissionValues)
+                Preview = CreateSubmissionPreview(submission.FormSubmissionValues),
+                Values = CreateSubmissionValueSummary(submission.FormSubmissionValues)
             });
 
             return new PagedResult<FormSubmissionSummaryDto>
             {
-                Items = summaryItems,
                 TotalCount = totalCount,
+                Items = summaryItems,
                 Page = page,
                 PageSize = pageSize,
                 TotalPages = totalPages,
@@ -125,7 +129,8 @@ namespace DynamicForm.Services
                 SubmittedDate = submission.SubmittedDate,
                 Status = submission.Status,
                 SubmittedBy = submission.SubmittedBy,
-                Preview = CreateSubmissionPreview(submission.FormSubmissionValues)
+                Preview = CreateSubmissionPreview(submission.FormSubmissionValues),
+                Values = CreateSubmissionValueSummary(submission.FormSubmissionValues)
             });
 
             return new PagedResult<FormSubmissionSummaryDto>
@@ -224,6 +229,63 @@ namespace DynamicForm.Services
             }
 
             return string.Join(" - ", preview.Take(2));
+        }
+
+        public List<SubmissionValueSummaryDto> CreateSubmissionValueSummary(ICollection<FormSubmissionValue> values)
+        {
+            return values.OrderBy(v => v.FieldId)
+                .Select(v => new SubmissionValueSummaryDto
+                {
+                    ArLabel = v.LabelAtSubmission,
+                    EnLabel = GenerateEnglishLabel(v.FieldNameAtSubmission),
+                    Value = v.FieldValue
+                }).ToList();
+        }
+
+        private string GenerateEnglishLabel(string fieldName)
+        {
+            // Handle predefined field names first
+
+            var predefinedLabels = fieldName.ToLower() switch
+            {
+                "name" or "fullname" => "Name",
+                "email" => "Email",
+                "phone" or "phonenumber" => "Phone Number",
+                "address" => "Address",
+                "birthdate" => "Birth Date",
+                "gender" => "Gender",
+                "nationality" => "Nationality",
+                "occupation" => "Occupation",
+                "company" => "Company",
+                "position" => "Position",
+                "experience" => "Experience",
+                "education" => "Education",
+                "skills" => "Skills",
+                "comments" => "Comments",
+                "notes" => "Notes",
+                "nationalid" => "National ID",
+                "nationalidtype" => "National ID Type",
+                "governorate" => "Governorate",
+                "maritalstatus" => "Marital Status",
+                "referenceno" => "Reference No",
+                "creationdate" => "Creation Date",
+                _ => null
+            };
+
+            if (!string.IsNullOrEmpty(predefinedLabels))
+            {
+                return predefinedLabels;
+            }
+
+            // Handle camelCase by splitting on uppercase letters
+            var result = Regex.Replace(fieldName, "([a-z])([A-Z])", "$1 $2");
+
+            // Handle underscores and hyphens
+            result = result.Replace("_", " ").Replace("-", " ");
+
+            // Title case each word
+            return string.Join(" ", result.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Select(word => char.ToUpper(word[0]) + word[1..].ToLower()));
         }
     }
 }
