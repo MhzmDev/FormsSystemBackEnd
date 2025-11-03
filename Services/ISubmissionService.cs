@@ -4,7 +4,7 @@ namespace DynamicForm.Services
 {
     public interface ISubmissionService
     {
-        Task<PagedResult<FormSubmissionSummaryDto>> GetAllSubmissionsAsync(int page, int pageSize, DateTime? fromDate, DateTime? toDate, string? status);
+        Task<PagedResult<FormSubmissionSummaryDto>> GetAllSubmissionsAsync(int page, int pageSize, DateTime? fromDate, DateTime? toDate, string? status, bool? isActive);
         Task<PagedResult<FormSubmissionSummaryDto>> GetSubmissionsByFormIdAsync(int formId, int page, int pageSize, DateTime? fromDate, DateTime? toDate, string? status);
         Task<PagedResult<FormSubmissionSummaryDto>> GetActiveFormSubmissionsAsync(int page, int pageSize, DateTime? fromDate, DateTime? toDate, string? status);
         Task<FormSubmissionResponseDto?> GetSubmissionByIdAsync(int submissionId);

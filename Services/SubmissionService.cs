@@ -22,7 +22,8 @@ namespace DynamicForm.Services
             int pageSize,
             DateTime? fromDate,
             DateTime? toDate,
-            string? status)
+            string? status,
+            bool? isActive)
         {
             var query = _context.FormSubmissions
                 .Include(s => s.Form)
@@ -43,6 +44,12 @@ namespace DynamicForm.Services
             if (!string.IsNullOrEmpty(status))
             {
                 query = query.Where(s => s.Status == status);
+            }
+
+            // Filter by form active status
+            if (isActive.HasValue)
+            {
+                query = query.Where(s => s.Form.IsActive == isActive.Value);
             }
 
             // Get total count for pagination

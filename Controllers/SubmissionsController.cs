@@ -25,6 +25,7 @@ namespace DynamicForm.Controllers
         /// <param name="fromDate">Filter submissions from this date</param>
         /// <param name="toDate">Filter submissions until this date</param>
         /// <param name="status">Filter by status</param>
+        /// <param name="isActive">Filter by form active status (true for active forms, false for inactive forms, null for all forms)</param>
         [HttpGet]
         [ProducesResponseType(typeof(ApiResponse<PagedResult<FormSubmissionSummaryDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -34,7 +35,8 @@ namespace DynamicForm.Controllers
             [FromQuery] int pageSize = 10,
             [FromQuery] DateTime? fromDate = null,
             [FromQuery] DateTime? toDate = null,
-            [FromQuery] string? status = null)
+            [FromQuery] string? status = null,
+            [FromQuery] bool? isActive = null)
         {
             try
             {
@@ -57,7 +59,7 @@ namespace DynamicForm.Controllers
                     });
                 }
 
-                var submissions = await _submissionService.GetAllSubmissionsAsync(page, pageSize, fromDate, toDate, status);
+                var submissions = await _submissionService.GetAllSubmissionsAsync(page, pageSize, fromDate, toDate, status, isActive);
 
                 return Ok(new ApiResponse<PagedResult<FormSubmissionSummaryDto>>
                 {
