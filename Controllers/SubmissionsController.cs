@@ -78,6 +78,77 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
+        ///     Get all submissions for the currently active form
+        /// </summary>
+        /// <param name="page">Page number (default: 1)</param>
+        /// <param name="pageSize">Items per page (default: 10, max: 50)</param>
+        /// <param name="fromDate">Filter submissions from this date</param>
+        /// <param name="toDate">Filter submissions until this date</param>
+        /// <param name="status">Filter by status</param>
+        [HttpGet("active")]
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<FormSubmissionSummaryDto>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<PagedResult<FormSubmissionSummaryDto>>> GetActiveFormSubmissions(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10,
+            [FromQuery] DateTime? fromDate = null,
+            [FromQuery] DateTime? toDate = null,
+            [FromQuery] string? status = null)
+        {
+            try
+            {
+                // validate pagination
+                if (page < 1)
+                {
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "رقم الصفحة يجب أن يكون أكبر من أو يساوي 1"
+                    });
+                }
+
+                if (pageSize < 1 || pageSize > 50)
+                {
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "عدد العناصر في الصفحة يجب أن يكون بين 1 و 50"
+                    });
+                }
+
+                var submissions = await _submissionService.GetActiveFormSubmissionsAsync(page, pageSize, fromDate, toDate, status);
+
+                if (!submissions.Items.Any())
+                {
+                    return Ok(new ApiResponse<PagedResult<FormSubmissionSummaryDto>>
+                    {
+                        Success = true,
+                        Message = "لا توجد مرسلات للنموذج النشط حاليًا",
+                        Data = submissions
+                    });
+                }
+
+                return Ok(new ApiResponse<PagedResult<FormSubmissionSummaryDto>>
+                {
+                    Success = true,
+                    Message = "تم جلب مرسلات النموذج النشط بنجاح",
+                    Data = submissions
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "حدث خطأ في النظام",
+                    Error = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
         ///     Get all submissions for a specific form
         /// </summary>
         /// <param name="formId">Form ID</param>

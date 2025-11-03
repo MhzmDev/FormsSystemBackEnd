@@ -145,6 +145,70 @@ namespace DynamicForm.Services
             };
         }
 
+        public async Task<PagedResult<FormSubmissionSummaryDto>> GetActiveFormSubmissionsAsync(
+            int page,
+            int pageSize,
+            DateTime? fromDate,
+            DateTime? toDate,
+            string? status)
+        {
+            var query = _context.FormSubmissions
+                .Include(s => s.Form)
+                .Include(s => s.FormSubmissionValues)
+                .Where(s => s.Form.IsActive) // Filter by active form only
+                .AsQueryable();
+
+            // Apply additional filters
+            if (fromDate.HasValue)
+            {
+                query = query.Where(s => s.SubmittedDate >= fromDate.Value);
+            }
+
+            if (toDate.HasValue)
+            {
+                query = query.Where(s => s.SubmittedDate <= toDate.Value);
+            }
+
+            if (!string.IsNullOrEmpty(status))
+            {
+                query = query.Where(s => s.Status == status);
+            }
+
+            // Get total count for pagination
+            var totalCount = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            // Apply pagination
+            var submissions = await query
+                .OrderByDescending(s => s.SubmittedDate)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var summaryItems = submissions.Select(submission => new FormSubmissionSummaryDto
+            {
+                SubmissionId = submission.SubmissionId,
+                FormId = submission.FormId,
+                FormName = submission.Form.Name,
+                SubmittedDate = submission.SubmittedDate,
+                Status = submission.Status,
+                SubmittedBy = submission.SubmittedBy,
+                Preview = CreateSubmissionPreview(submission.FormSubmissionValues),
+                Values = CreateSubmissionValueSummary(submission.FormSubmissionValues)
+            });
+
+            return new PagedResult<FormSubmissionSummaryDto>
+            {
+                Items = summaryItems,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = totalPages,
+                HasNextPage = page < totalPages,
+                HasPreviousPage = page > 1
+            };
+        }
+
         public async Task<FormSubmissionResponseDto?> GetSubmissionByIdAsync(int submissionId)
         {
             var submission = await _context.FormSubmissions
