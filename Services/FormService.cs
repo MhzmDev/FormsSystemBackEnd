@@ -11,11 +11,13 @@ namespace DynamicForm.Services
 {
     public class FormService : IFormService
     {
+        private readonly IApprovalService _approvalService;
         private readonly ApplicationDbContext _context;
 
-        public FormService(ApplicationDbContext context)
+        public FormService(ApplicationDbContext context, IApprovalService approvalService)
         {
             _context = context;
+            _approvalService = approvalService;
         }
 
         public async Task<FormDto?> GetFormByIdAsync(int formId)
@@ -136,7 +138,14 @@ namespace DynamicForm.Services
                 _context.Forms.Add(form);
                 await _context.SaveChangesAsync();
 
-                foreach (var fieldDto in createFormDto.Fields)
+                // Calculate starting display order for mandatory fields
+                var maxDisplayOrder = createFormDto.Fields?.Max(f => f.DisplayOrder) ?? 0;
+
+                // Add mandatory fields first
+                var mandatoryFields = await CreateMandatoryFieldsAsync(form.FormId, maxDisplayOrder + 1);
+                _context.FormFields.AddRange(mandatoryFields);
+
+                foreach (var fieldDto in createFormDto.Fields!)
                 {
                     var field = new FormField
                     {
@@ -284,11 +293,14 @@ namespace DynamicForm.Services
                 FormId = formId,
                 SubmittedBy = submitFormDto.SubmittedBy,
                 SubmittedDate = DateTime.UtcNow,
-                Status = "مُرسل"
+                Status = "مُرسل" // Will be updated by the approval service later
             };
 
             _context.FormSubmissions.Add(submission);
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(); // Save first to get the SubmissionId
+
+            // Now create submission values with the correct SubmissionId
+            var submissionValues = new List<FormSubmissionValue>();
 
             foreach (var value in submitFormDto.Values)
             {
@@ -298,7 +310,7 @@ namespace DynamicForm.Services
                 {
                     var submissionValue = new FormSubmissionValue
                     {
-                        SubmissionId = submission.SubmissionId,
+                        SubmissionId = submission.SubmissionId, // Now this has a valid value
                         FieldId = field.FieldId,
                         FieldValue = value.Value,
                         FieldNameAtSubmission = field.FieldName,
@@ -309,10 +321,21 @@ namespace DynamicForm.Services
                     };
 
                     _context.FormSubmissionValues.Add(submissionValue);
+                    submissionValues.Add(submissionValue);
                 }
             }
 
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(); // Save the submission values
+
+            // Process approval automatically
+            var approvalResult = await _approvalService.ProcessApprovalAsync(submissionValues);
+
+            // Update submission with approval result
+            submission.Status = approvalResult.Status;
+            submission.RejectionReason = approvalResult.RejectionReason;
+            submission.RejectionReasonEn = approvalResult.RejectionReasonEn;
+
+            await _context.SaveChangesAsync(); // Save the updated status
 
             var submissionService = new SubmissionService(_context);
 
@@ -388,6 +411,62 @@ namespace DynamicForm.Services
                     Options = !string.IsNullOrEmpty(f.Options) ? JsonSerializer.Deserialize<List<string>>(f.Options) : null
                 }).ToList()
             };
+        }
+
+        private async Task<List<FormField>> CreateMandatoryFieldsAsync(int formId, int startingDisplayOrder)
+        {
+            var citizenshipOptions = new List<string> { "مواطن", "مقيم" };
+            var mortgageOptions = new List<string> { "نعم", "لا" };
+
+            var mandatoryFields = new List<FormField>
+            {
+                new FormField
+                {
+                    FormId = formId,
+                    FieldName = "citizenshipStatus",
+                    FieldType = "dropdown",
+                    Label = "مواطن أو مقيم",
+                    IsRequired = true,
+                    DisplayOrder = startingDisplayOrder,
+                    IsActive = true,
+                    Options = JsonSerializer.Serialize(citizenshipOptions)
+                },
+                new FormField
+                {
+                    FormId = formId,
+                    FieldName = "hasMortgage",
+                    FieldType = "dropdown",
+                    Label = "قرض عقاري",
+                    IsRequired = true,
+                    DisplayOrder = startingDisplayOrder + 1,
+                    IsActive = true,
+                    Options = JsonSerializer.Serialize(mortgageOptions)
+                },
+                new FormField
+                {
+                    FormId = formId,
+                    FieldName = "monthlySalary",
+                    FieldType = "text",
+                    Label = "الراتب الشهري",
+                    IsRequired = true,
+                    DisplayOrder = startingDisplayOrder + 2,
+                    IsActive = true,
+                    ValidationRules = JsonSerializer.Serialize(new { type = "number", min = 0 })
+                },
+                new FormField
+                {
+                    FormId = formId,
+                    FieldName = "monthlyCommitments",
+                    FieldType = "text",
+                    Label = "الالتزامات الشهرية",
+                    IsRequired = true,
+                    DisplayOrder = startingDisplayOrder + 3,
+                    IsActive = true,
+                    ValidationRules = JsonSerializer.Serialize(new { type = "number", min = 0 })
+                }
+            };
+
+            return mandatoryFields;
         }
     }
 }

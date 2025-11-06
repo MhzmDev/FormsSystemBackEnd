@@ -32,6 +32,8 @@ namespace DynamicForm.Models.DTOs
         public string Status { get; set; } = string.Empty;
         public string? SubmittedBy { get; set; }
         public string Preview { get; set; } = string.Empty; // Summary of key values
+        public string? RejectionReason { get; set; }
+        public string? RejectionReasonEn { get; set; }
         public List<SubmissionValueSummaryDto> Values { get; set; } = new List<SubmissionValueSummaryDto>();
     }
 

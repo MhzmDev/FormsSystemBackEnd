@@ -14,7 +14,13 @@ namespace DynamicForm.Models
         public string? SubmittedBy { get; set; }
 
         [StringLength(50)]
-        public string Status { get; set; } = "مُرسل";
+        public string Status { get; set; } = "جديد";
+
+        [StringLength(1000)]
+        public string? RejectionReason { get; set; }
+
+        [StringLength(1000)]
+        public string? RejectionReasonEn { get; set; }
 
         // Navigation properties
         public Form Form { get; set; } = null!;

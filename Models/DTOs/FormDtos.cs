@@ -6,7 +6,7 @@ namespace DynamicForm.Models.DTOs
         public string? Description { get; set; }
         public List<CreateFormFieldDto> Fields { get; set; } = new List<CreateFormFieldDto>();
     }
-    
+
     public class CreateFormFieldDto
     {
         public string FieldName { get; set; } = string.Empty;
@@ -16,7 +16,7 @@ namespace DynamicForm.Models.DTOs
         public List<string>? Options { get; set; }
         public int DisplayOrder { get; set; }
     }
-    
+
     public class FormDto
     {
         public int FormId { get; set; }
@@ -26,7 +26,7 @@ namespace DynamicForm.Models.DTOs
         public DateTime CreatedDate { get; set; }
         public List<FormFieldDto> Fields { get; set; } = new List<FormFieldDto>();
     }
-    
+
     public class FormFieldDto
     {
         public int FieldId { get; set; }
@@ -37,14 +37,14 @@ namespace DynamicForm.Models.DTOs
         public List<string>? Options { get; set; }
         public int DisplayOrder { get; set; }
     }
-    
+
     public class FormSubmissionDto
     {
         public int FormId { get; set; }
         public string? SubmittedBy { get; set; }
         public Dictionary<string, string> Values { get; set; } = new Dictionary<string, string>();
     }
-    
+
     public class FormSubmissionResponseDto
     {
         public int SubmissionId { get; set; }
@@ -52,9 +52,11 @@ namespace DynamicForm.Models.DTOs
         public DateTime SubmittedDate { get; set; }
         public string Status { get; set; } = string.Empty;
         public string? SubmittedBy { get; set; }
+        public string? RejectionReason { get; set; }
+        public string? RejectionReasonEn { get; set; }
         public List<FieldValueDto> Values { get; set; } = new List<FieldValueDto>();
     }
-    
+
     public class FieldValueDto
     {
         public string FieldName { get; set; } = string.Empty;

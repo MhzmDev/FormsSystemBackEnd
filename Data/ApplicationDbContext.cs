@@ -19,6 +19,54 @@ namespace DynamicForm.Data
         {
             base.OnModelCreating(modelBuilder);
 
+            // Form entity configuration
+            modelBuilder.Entity<Form>(entity =>
+            {
+                entity.HasKey(e => e.FormId);
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.Description).HasMaxLength(1000);
+                entity.Property(e => e.CreatedBy).HasMaxLength(100);
+            });
+
+            // FormField entity configuration
+            modelBuilder.Entity<FormField>(entity =>
+            {
+                entity.HasKey(e => e.FieldId);
+                entity.Property(e => e.FieldName).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.FieldType).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.Label).IsRequired().HasMaxLength(200);
+
+                entity.HasOne(d => d.Form)
+                    .WithMany(p => p.FormFields)
+                    .HasForeignKey(d => d.FormId);
+            });
+
+            // FormSubmission entity configuration
+            modelBuilder.Entity<FormSubmission>(entity =>
+            {
+                entity.HasKey(e => e.SubmissionId);
+                entity.Property(e => e.SubmittedBy).HasMaxLength(100);
+                entity.Property(e => e.Status).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.RejectionReason).HasMaxLength(1000);
+                entity.Property(e => e.RejectionReasonEn).HasMaxLength(1000);
+
+                entity.HasOne(d => d.Form)
+                    .WithMany(p => p.FormSubmissions)
+                    .HasForeignKey(d => d.FormId);
+            });
+
+            // FormSubmissionValue entity configuration
+            modelBuilder.Entity<FormSubmissionValue>(entity =>
+            {
+                entity.Property(e => e.FieldNameAtSubmission).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.FieldTypeAtSubmission).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.LabelAtSubmission).IsRequired().HasMaxLength(200);
+
+                entity.HasOne(d => d.FormSubmission)
+                    .WithMany(p => p.FormSubmissionValues)
+                    .HasForeignKey(d => d.SubmissionId);
+            });
+
             // Configure relationships
             modelBuilder.Entity<FormField>()
                 .HasOne(f => f.Form)
@@ -49,7 +97,7 @@ namespace DynamicForm.Data
                 .Property(v => v.LabelAtSubmission)
                 .HasMaxLength(200)
                 .IsRequired();
-                
+
             modelBuilder.Entity<FormSubmissionValue>()
                 .Property(v => v.FieldNameAtSubmission)
                 .HasMaxLength(100)
@@ -75,12 +123,12 @@ namespace DynamicForm.Data
             );
 
             // National ID type options
-            var nationalIdOptions = new List<string> 
-            { 
-                "بطاقة هوية وطنية", 
-                "جواز سفر", 
-                "رخصة قيادة", 
-                "بطاقة إقامة" 
+            var nationalIdOptions = new List<string>
+            {
+                "بطاقة هوية وطنية",
+                "جواز سفر",
+                "رخصة قيادة",
+                "بطاقة إقامة"
             };
 
             // Governorate options (example for Saudi Arabia)
@@ -91,9 +139,12 @@ namespace DynamicForm.Data
             };
 
             var maritalStatusOptions = new List<string> { "أعزب", "متزوج", "مطلق", "أرمل" };
+            var citizenshipOptions = new List<string> { "مواطن", "مقيم" };
+            var mortgageOptions = new List<string> { "نعم", "لا" };
 
             // Default form fields with Arabic labels
             modelBuilder.Entity<FormField>().HasData(
+                // Original fields
                 new FormField
                 {
                     FieldId = 1,
@@ -160,8 +211,7 @@ namespace DynamicForm.Data
                     Label = "رقم الهاتف",
                     IsRequired = true,
                     DisplayOrder = 6,
-                    IsActive = true,
-                    ValidationRules = JsonSerializer.Serialize(new { pattern = "^[0-9+\\-\\s]+$" })
+                    IsActive = true
                 },
                 new FormField
                 {
@@ -181,7 +231,7 @@ namespace DynamicForm.Data
                     FieldName = "address",
                     FieldType = "text",
                     Label = "العنوان",
-                    IsRequired = true,
+                    IsRequired = false,
                     DisplayOrder = 8,
                     IsActive = true
                 },
@@ -191,7 +241,7 @@ namespace DynamicForm.Data
                     FormId = 1,
                     FieldName = "governorate",
                     FieldType = "dropdown",
-                    Label = "المنطقة/المحافظة",
+                    Label = "المحافظة",
                     IsRequired = true,
                     DisplayOrder = 9,
                     IsActive = true,
@@ -204,10 +254,60 @@ namespace DynamicForm.Data
                     FieldName = "maritalStatus",
                     FieldType = "dropdown",
                     Label = "الحالة الاجتماعية",
-                    IsRequired = false,
+                    IsRequired = true,
                     DisplayOrder = 10,
                     IsActive = true,
                     Options = JsonSerializer.Serialize(maritalStatusOptions)
+                },
+
+                // NEW MANDATORY FIELDS - Added at the end
+                new FormField
+                {
+                    FieldId = 11,
+                    FormId = 1,
+                    FieldName = "citizenshipStatus",
+                    FieldType = "dropdown",
+                    Label = "مواطن أو مقيم",
+                    IsRequired = true,
+                    DisplayOrder = 11,
+                    IsActive = true,
+                    Options = JsonSerializer.Serialize(citizenshipOptions)
+                },
+                new FormField
+                {
+                    FieldId = 12,
+                    FormId = 1,
+                    FieldName = "hasMortgage",
+                    FieldType = "dropdown",
+                    Label = "قرض عقاري",
+                    IsRequired = true,
+                    DisplayOrder = 12,
+                    IsActive = true,
+                    Options = JsonSerializer.Serialize(mortgageOptions)
+                },
+                new FormField
+                {
+                    FieldId = 13,
+                    FormId = 1,
+                    FieldName = "monthlySalary",
+                    FieldType = "text",
+                    Label = "الراتب الشهري",
+                    IsRequired = true,
+                    DisplayOrder = 13,
+                    IsActive = true,
+                    ValidationRules = JsonSerializer.Serialize(new { type = "number", min = 0 })
+                },
+                new FormField
+                {
+                    FieldId = 14,
+                    FormId = 1,
+                    FieldName = "monthlyCommitments",
+                    FieldType = "text",
+                    Label = "الالتزامات الشهرية",
+                    IsRequired = true,
+                    DisplayOrder = 14,
+                    IsActive = true,
+                    ValidationRules = JsonSerializer.Serialize(new { type = "number", min = 0 })
                 }
             );
         }

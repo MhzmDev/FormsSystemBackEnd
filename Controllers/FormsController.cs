@@ -159,7 +159,7 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        ///     Submit form data
+        ///     Create a New Form 
         /// </summary>
         /// <param name="id">Form ID - معرف النموذج</param>
         /// <param name="createFormDto">Form submission data - بيانات إرسال النموذج</param>

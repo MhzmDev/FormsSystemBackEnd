@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DynamicForm.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251010131407_Initia_CreateTheForm")]
-    partial class Initia_CreateTheForm
+    [Migration("20251106132534_Init_AddingTheFromBase")]
+    partial class Init_AddingTheFromBase
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -41,8 +41,8 @@ namespace DynamicForm.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -64,7 +64,7 @@ namespace DynamicForm.Migrations
                         {
                             FormId = 1,
                             CreatedBy = "النظام",
-                            CreatedDate = new DateTime(2025, 10, 10, 13, 14, 7, 562, DateTimeKind.Utc).AddTicks(2326),
+                            CreatedDate = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Description = "نموذج لجمع البيانات الشخصية الأساسية",
                             IsActive = true,
                             Name = "نموذج البيانات الشخصية"
@@ -187,8 +187,7 @@ namespace DynamicForm.Migrations
                             FormId = 1,
                             IsActive = true,
                             IsRequired = true,
-                            Label = "رقم الهاتف",
-                            ValidationRules = "{\"pattern\":\"^[0-9\\u002B\\\\-\\\\s]\\u002B$\"}"
+                            Label = "رقم الهاتف"
                         },
                         new
                         {
@@ -209,7 +208,7 @@ namespace DynamicForm.Migrations
                             FieldType = "text",
                             FormId = 1,
                             IsActive = true,
-                            IsRequired = true,
+                            IsRequired = false,
                             Label = "العنوان"
                         },
                         new
@@ -221,7 +220,7 @@ namespace DynamicForm.Migrations
                             FormId = 1,
                             IsActive = true,
                             IsRequired = true,
-                            Label = "المنطقة/المحافظة",
+                            Label = "المحافظة",
                             Options = "[\"\\u0627\\u0644\\u0631\\u064A\\u0627\\u0636\",\"\\u0645\\u0643\\u0629 \\u0627\\u0644\\u0645\\u0643\\u0631\\u0645\\u0629\",\"\\u0627\\u0644\\u0645\\u062F\\u064A\\u0646\\u0629 \\u0627\\u0644\\u0645\\u0646\\u0648\\u0631\\u0629\",\"\\u0627\\u0644\\u0642\\u0635\\u064A\\u0645\",\"\\u0627\\u0644\\u0645\\u0646\\u0637\\u0642\\u0629 \\u0627\\u0644\\u0634\\u0631\\u0642\\u064A\\u0629\",\"\\u0639\\u0633\\u064A\\u0631\",\"\\u062A\\u0628\\u0648\\u0643\",\"\\u062D\\u0627\\u0626\\u0644\",\"\\u0627\\u0644\\u062D\\u062F\\u0648\\u062F \\u0627\\u0644\\u0634\\u0645\\u0627\\u0644\\u064A\\u0629\",\"\\u062C\\u0627\\u0632\\u0627\\u0646\",\"\\u0646\\u062C\\u0631\\u0627\\u0646\",\"\\u0627\\u0644\\u0628\\u0627\\u062D\\u0629\",\"\\u0627\\u0644\\u062C\\u0648\\u0641\"]"
                         },
                         new
@@ -232,9 +231,57 @@ namespace DynamicForm.Migrations
                             FieldType = "dropdown",
                             FormId = 1,
                             IsActive = true,
-                            IsRequired = false,
+                            IsRequired = true,
                             Label = "الحالة الاجتماعية",
                             Options = "[\"\\u0623\\u0639\\u0632\\u0628\",\"\\u0645\\u062A\\u0632\\u0648\\u062C\",\"\\u0645\\u0637\\u0644\\u0642\",\"\\u0623\\u0631\\u0645\\u0644\"]"
+                        },
+                        new
+                        {
+                            FieldId = 11,
+                            DisplayOrder = 11,
+                            FieldName = "citizenshipStatus",
+                            FieldType = "dropdown",
+                            FormId = 1,
+                            IsActive = true,
+                            IsRequired = true,
+                            Label = "مواطن أو مقيم",
+                            Options = "[\"\\u0645\\u0648\\u0627\\u0637\\u0646\",\"\\u0645\\u0642\\u064A\\u0645\"]"
+                        },
+                        new
+                        {
+                            FieldId = 12,
+                            DisplayOrder = 12,
+                            FieldName = "hasMortgage",
+                            FieldType = "dropdown",
+                            FormId = 1,
+                            IsActive = true,
+                            IsRequired = true,
+                            Label = "قرض عقاري",
+                            Options = "[\"\\u0646\\u0639\\u0645\",\"\\u0644\\u0627\"]"
+                        },
+                        new
+                        {
+                            FieldId = 13,
+                            DisplayOrder = 13,
+                            FieldName = "monthlySalary",
+                            FieldType = "text",
+                            FormId = 1,
+                            IsActive = true,
+                            IsRequired = true,
+                            Label = "الراتب الشهري",
+                            ValidationRules = "{\"type\":\"number\",\"min\":0}"
+                        },
+                        new
+                        {
+                            FieldId = 14,
+                            DisplayOrder = 14,
+                            FieldName = "monthlyCommitments",
+                            FieldType = "text",
+                            FormId = 1,
+                            IsActive = true,
+                            IsRequired = true,
+                            Label = "الالتزامات الشهرية",
+                            ValidationRules = "{\"type\":\"number\",\"min\":0}"
                         });
                 });
 
@@ -248,6 +295,14 @@ namespace DynamicForm.Migrations
 
                     b.Property<int>("FormId")
                         .HasColumnType("int");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("RejectionReasonEn")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -282,8 +337,27 @@ namespace DynamicForm.Migrations
                     b.Property<int>("FieldId")
                         .HasColumnType("int");
 
+                    b.Property<string>("FieldNameAtSubmission")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("FieldTypeAtSubmission")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
                     b.Property<string>("FieldValue")
                         .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("LabelAtSubmission")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("OptionsAtSubmission")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 

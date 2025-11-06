@@ -71,6 +71,8 @@ namespace DynamicForm.Services
                 SubmittedDate = submission.SubmittedDate,
                 Status = submission.Status,
                 SubmittedBy = submission.SubmittedBy,
+                RejectionReason = submission.RejectionReason,
+                RejectionReasonEn = submission.RejectionReasonEn,
                 Preview = CreateSubmissionPreview(submission.FormSubmissionValues),
                 Values = CreateSubmissionValueSummary(submission.FormSubmissionValues)
             });
@@ -136,6 +138,8 @@ namespace DynamicForm.Services
                 SubmittedDate = submission.SubmittedDate,
                 Status = submission.Status,
                 SubmittedBy = submission.SubmittedBy,
+                RejectionReason = submission.RejectionReason,
+                RejectionReasonEn = submission.RejectionReasonEn,
                 Preview = CreateSubmissionPreview(submission.FormSubmissionValues),
                 Values = CreateSubmissionValueSummary(submission.FormSubmissionValues)
             });
@@ -200,6 +204,8 @@ namespace DynamicForm.Services
                 SubmittedDate = submission.SubmittedDate,
                 Status = submission.Status,
                 SubmittedBy = submission.SubmittedBy,
+                RejectionReason = submission.RejectionReason,
+                RejectionReasonEn = submission.RejectionReasonEn,
                 Preview = CreateSubmissionPreview(submission.FormSubmissionValues),
                 Values = CreateSubmissionValueSummary(submission.FormSubmissionValues)
             });
@@ -235,6 +241,8 @@ namespace DynamicForm.Services
                 SubmittedDate = submission.SubmittedDate,
                 Status = submission.Status,
                 SubmittedBy = submission.SubmittedBy,
+                RejectionReason = submission.RejectionReason,
+                RejectionReasonEn = submission.RejectionReasonEn,
                 Values = submission.FormSubmissionValues
                     .OrderBy(v => v.FieldId) // Maintain some order
                     .Select(v => new FieldValueDto
@@ -340,6 +348,11 @@ namespace DynamicForm.Services
                 "maritalstatus" => "Marital Status",
                 "referenceno" => "Reference No",
                 "creationdate" => "Creation Date",
+                // New Mandatroy Fields
+                "citizenshipstatus" => "Citizenship Status",
+                "hasmortgage" => "Has Mortgage",
+                "monthlysalary" => "Monthly Salary",
+                "monthlycommitments" => "Monthly Commitments",
                 _ => null
             };
 
