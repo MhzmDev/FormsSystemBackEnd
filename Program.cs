@@ -14,10 +14,14 @@ builder.Services.AddControllers();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Add HttpClient for WhatsApp service
+builder.Services.AddHttpClient<WhatsAppService>();
+
 // Add services
 builder.Services.AddScoped<IFormService, FormService>();
 builder.Services.AddScoped<ISubmissionService, SubmissionService>();
 builder.Services.AddScoped<IApprovalService, ApprovalService>();
+builder.Services.AddScoped<IWhatsAppService, WhatsAppService>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -28,7 +32,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Dynamic Forms API",
         Version = "v1",
-        Description = @"Dynamic Form API",
+        Description = @"Dynamic Form API with WhatsApp Integration via Morasalaty",
         Contact = new OpenApiContact
         {
             Name = "API Support",
@@ -114,19 +118,6 @@ using (var scope = app.Services.CreateScope())
         }
     }
 }
-
-//// Configure the HTTP request pipeline.
-//if (app.Environment.IsDevelopment())
-//{
-//    app.UseSwagger();
-
-//    app.UseSwaggerUI(c =>
-//    {
-//        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Dynamic Forms API v1");
-//        c.DocumentTitle = "Dynamic Forms API";
-//        c.RoutePrefix = "swagger"; // Available at /swagger
-//    });
-//}
 
 // Enable static files to serve wwwroot content (including your custom CSS)
 app.UseStaticFiles();

@@ -90,7 +90,7 @@ namespace DynamicForm.Services
             // Set final status and reasons
             if (result.IsApproved)
             {
-                result.Status = "مُعتمد";
+                result.Status = "مقبول";
             }
             else
             {

@@ -11,10 +11,14 @@ namespace DynamicForm.Services
     public class SubmissionService : ISubmissionService
     {
         private readonly ApplicationDbContext _context;
+        private readonly ILogger<SubmissionService> _logger;
+        private readonly IWhatsAppService _whatsAppService;
 
-        public SubmissionService(ApplicationDbContext context)
+        public SubmissionService(ApplicationDbContext context, IWhatsAppService whatsAppService, ILogger<SubmissionService> logger)
         {
             _context = context;
+            _whatsAppService = whatsAppService;
+            _logger = logger;
         }
 
         public async Task<PagedResult<FormSubmissionSummaryDto>> GetAllSubmissionsAsync(
@@ -257,15 +261,24 @@ namespace DynamicForm.Services
 
         public async Task<bool> UpdateSubmissionStatusAsync(int submissionId, string status)
         {
-            var submission = await _context.FormSubmissions.FindAsync(submissionId);
+            var submission = await _context.FormSubmissions
+                .Include(s => s.FormSubmissionValues)
+                .FirstOrDefaultAsync(s => s.SubmissionId == submissionId);
 
             if (submission == null)
             {
                 return false;
             }
 
+            var oldStatus = submission.Status;
             submission.Status = status;
             await _context.SaveChangesAsync();
+
+            // Send WhatsApp message if status changed to "معتمد"
+            if (oldStatus != "معتمد" && status == "معتمد")
+            {
+                _ = Task.Run(async () => await SendApprovalWhatsAppMessageAsync(submission));
+            }
 
             return true;
         }
@@ -284,6 +297,91 @@ namespace DynamicForm.Services
             await _context.SaveChangesAsync();
 
             return true;
+        }
+
+        private async Task SendApprovalWhatsAppMessageAsync(FormSubmission submission)
+        {
+            try
+            {
+                _logger.LogInformation("Attempting to send WhatsApp message for approved submission {SubmissionId}", submission.SubmissionId);
+
+                // Get submission data
+                var phoneValue = submission.FormSubmissionValues.FirstOrDefault(v =>
+                    v.FieldNameAtSubmission.ToLower().Contains("phone") ||
+                    v.FieldNameAtSubmission.ToLower().Contains("mobile") ||
+                    v.LabelAtSubmission.Contains("هاتف") ||
+                    v.LabelAtSubmission.Contains("جوال"));
+
+                var fullNameValue = submission.FormSubmissionValues.FirstOrDefault(v =>
+                    v.FieldNameAtSubmission.ToLower().Contains("name") ||
+                    v.FieldNameAtSubmission.ToLower().Contains("fullname") ||
+                    v.LabelAtSubmission.Contains("اسم"));
+
+                var nationalIdValue = submission.FormSubmissionValues.FirstOrDefault(v =>
+                    v.FieldNameAtSubmission.ToLower().Contains("nationalid") ||
+                    v.LabelAtSubmission.Contains("هوية"));
+
+                var birthDateValue = submission.FormSubmissionValues.FirstOrDefault(v =>
+                    v.FieldNameAtSubmission.ToLower().Contains("birth") ||
+                    v.LabelAtSubmission.Contains("ميلاد"));
+
+                var salaryValue = submission.FormSubmissionValues.FirstOrDefault(v =>
+                    v.FieldNameAtSubmission.ToLower().Contains("salary") ||
+                    v.LabelAtSubmission.Contains("راتب"));
+
+                var commitmentsValue = submission.FormSubmissionValues.FirstOrDefault(v =>
+                    v.FieldNameAtSubmission.ToLower().Contains("commitment") ||
+                    v.LabelAtSubmission.Contains("التزام"));
+
+                if (phoneValue == null || string.IsNullOrWhiteSpace(phoneValue.FieldValue))
+                {
+                    _logger.LogWarning("Phone number not found for submission {SubmissionId}", submission.SubmissionId);
+
+                    return;
+                }
+
+                var phoneNumber = phoneValue.FieldValue;
+                var fullName = fullNameValue?.FieldValue ?? "عميل محزم";
+
+                // Create subscriber in Morasalaty
+                var subscriberCreated = await _whatsAppService.CreateSubscriberAsync(phoneNumber, fullName);
+
+                if (!subscriberCreated)
+                {
+                    _logger.LogWarning("Failed to create subscriber for {Phone}, but continuing with template send", phoneNumber);
+                }
+
+                // Prepare template parameters based on your template structure
+                var templateParams = new Dictionary<string, string>
+                {
+                    ["BODY_1"] = submission.SubmissionId.ToString(), // رقم الطلب: {{1}}
+                    ["BODY_2"] = fullNameValue?.FieldValue ?? "غير محدد", // الاسم الثلاثي: {{2}}
+                    ["BODY_3"] = phoneValue.FieldValue, // رقم الجوال: {{3}}
+                    ["BODY_4"] = nationalIdValue?.FieldValue ?? "غير محدد", // رقم الهوية: {{4}}
+                    ["BODY_5"] = birthDateValue?.FieldValue ?? "غير محدد", // تاريخ الميلاد: {{5}}
+                    ["BODY_6"] = salaryValue?.FieldValue ?? "غير محدد", // الراتب: {{6}}
+                    ["BODY_7"] = commitmentsValue?.FieldValue ?? "غير محدد", // الالتزامات: {{7}}
+                    ["BODY_8"] = "جديد" // مدة الخدمة: {{8}} - default for new customers
+                };
+
+                // Send WhatsApp template message
+                var messageSent = await _whatsAppService.SendApprovalMessageAsync(phoneNumber, templateParams);
+
+                if (messageSent)
+                {
+                    _logger.LogInformation("WhatsApp approval message sent successfully for submission {SubmissionId} to {Phone}",
+                        submission.SubmissionId, phoneNumber);
+                }
+                else
+                {
+                    _logger.LogError("Failed to send WhatsApp approval message for submission {SubmissionId} to {Phone}",
+                        submission.SubmissionId, phoneNumber);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending WhatsApp approval message for submission {SubmissionId}", submission.SubmissionId);
+            }
         }
 
         private string CreateSubmissionPreview(ICollection<FormSubmissionValue> values)
@@ -324,7 +422,6 @@ namespace DynamicForm.Services
         private string GenerateEnglishLabel(string fieldName)
         {
             // Handle predefined field names first
-
             var predefinedLabels = fieldName.ToLower() switch
             {
                 "name" or "fullname" => "Name",
@@ -348,7 +445,7 @@ namespace DynamicForm.Services
                 "maritalstatus" => "Marital Status",
                 "referenceno" => "Reference No",
                 "creationdate" => "Creation Date",
-                // New Mandatroy Fields
+                // New Mandatory Fields
                 "citizenshipstatus" => "Citizenship Status",
                 "hasmortgage" => "Has Mortgage",
                 "monthlysalary" => "Monthly Salary",
