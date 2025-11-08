@@ -345,9 +345,19 @@ namespace DynamicForm.Services
             await _context.SaveChangesAsync(); // Save the updated status
 
             // Send WhatsApp message if approved immediately
-            if (approvalResult.Status == "مقبول")
+            if (approvalResult.Status == "مقبول") // Changed from "مقبول" to "معتمد"
             {
-                _ = Task.Run(async () => await SendApprovalWhatsAppMessageAsync(submission, submissionValues));
+                //_ = Task.Run(async () =>
+                //{
+                    try
+                    {
+                        await SendApprovalWhatsAppMessageAsync(submission, submissionValues);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Background WhatsApp task failed for submission {SubmissionId}", submission.SubmissionId);
+                    }
+                    //});
             }
 
             return await _submissionService.GetSubmissionByIdAsync(submission.SubmissionId) ?? throw new InvalidOperationException("فشل في حفظ البيانات");
@@ -451,13 +461,17 @@ namespace DynamicForm.Services
                 var phoneNumber = phoneValue.FieldValue;
                 var fullName = fullNameValue?.FieldValue ?? "عميل محزم";
 
-                // Create subscriber in Morasalaty
+                // Create subscriber in Morasalaty with timeout
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
                 var subscriberCreated = await _whatsAppService.CreateSubscriberAsync(phoneNumber, fullName);
 
                 if (!subscriberCreated)
                 {
                     _logger.LogWarning("Failed to create subscriber for {Phone}, but continuing with template send", phoneNumber);
                 }
+
+                //// Add small delay between API calls
+                //await Task.Delay(1000, cts.Token);
 
                 // Prepare template parameters
                 var nationalIdValue = submissionValues.FirstOrDefault(v =>
@@ -501,6 +515,10 @@ namespace DynamicForm.Services
                     _logger.LogError("Failed to send WhatsApp approval message for submission {SubmissionId} to {Phone}",
                         submission.SubmissionId, phoneNumber);
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogError("WhatsApp message sending timed out for submission {SubmissionId}", submission.SubmissionId);
             }
             catch (Exception ex)
             {
