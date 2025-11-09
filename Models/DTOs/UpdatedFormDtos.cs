@@ -31,6 +31,7 @@ namespace DynamicForm.Models.DTOs
         public DateTime SubmittedDate { get; set; }
         public string Status { get; set; } = string.Empty;
         public string? SubmittedBy { get; set; }
+        public string? PhoneNumber { get; set; }
         public string Preview { get; set; } = string.Empty; // Summary of key values
         public string? RejectionReason { get; set; }
         public string? RejectionReasonEn { get; set; }

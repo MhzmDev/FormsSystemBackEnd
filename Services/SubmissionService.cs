@@ -75,6 +75,8 @@ namespace DynamicForm.Services
                 SubmittedDate = submission.SubmittedDate,
                 Status = submission.Status,
                 SubmittedBy = submission.SubmittedBy,
+                PhoneNumber = submission.FormSubmissionValues
+                    .FirstOrDefault(v => v.FieldNameAtSubmission.Contains("phone", StringComparison.OrdinalIgnoreCase))?.FieldValue,
                 RejectionReason = submission.RejectionReason,
                 RejectionReasonEn = submission.RejectionReasonEn,
                 Preview = CreateSubmissionPreview(submission.FormSubmissionValues),
@@ -142,6 +144,8 @@ namespace DynamicForm.Services
                 SubmittedDate = submission.SubmittedDate,
                 Status = submission.Status,
                 SubmittedBy = submission.SubmittedBy,
+                PhoneNumber = submission.FormSubmissionValues
+                    .FirstOrDefault(v => v.FieldNameAtSubmission.Contains("phone", StringComparison.OrdinalIgnoreCase))?.FieldValue,
                 RejectionReason = submission.RejectionReason,
                 RejectionReasonEn = submission.RejectionReasonEn,
                 Preview = CreateSubmissionPreview(submission.FormSubmissionValues),
@@ -208,6 +212,8 @@ namespace DynamicForm.Services
                 SubmittedDate = submission.SubmittedDate,
                 Status = submission.Status,
                 SubmittedBy = submission.SubmittedBy,
+                PhoneNumber = submission.FormSubmissionValues
+                    .FirstOrDefault(v => v.FieldNameAtSubmission.Contains("phone", StringComparison.OrdinalIgnoreCase))?.FieldValue,
                 RejectionReason = submission.RejectionReason,
                 RejectionReasonEn = submission.RejectionReasonEn,
                 Preview = CreateSubmissionPreview(submission.FormSubmissionValues),
@@ -245,6 +251,8 @@ namespace DynamicForm.Services
                 SubmittedDate = submission.SubmittedDate,
                 Status = submission.Status,
                 SubmittedBy = submission.SubmittedBy,
+                PhoneNumber = submission.FormSubmissionValues
+                    .FirstOrDefault(v => v.FieldNameAtSubmission.Contains("phone", StringComparison.OrdinalIgnoreCase))?.FieldValue,
                 RejectionReason = submission.RejectionReason,
                 RejectionReasonEn = submission.RejectionReasonEn,
                 Values = submission.FormSubmissionValues

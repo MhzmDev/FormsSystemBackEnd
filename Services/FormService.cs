@@ -349,15 +349,15 @@ namespace DynamicForm.Services
             {
                 //_ = Task.Run(async () =>
                 //{
-                    try
-                    {
-                        await SendApprovalWhatsAppMessageAsync(submission, submissionValues);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Background WhatsApp task failed for submission {SubmissionId}", submission.SubmissionId);
-                    }
-                    //});
+                try
+                {
+                    await SendApprovalWhatsAppMessageAsync(submission, submissionValues);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Background WhatsApp task failed for submission {SubmissionId}", submission.SubmissionId);
+                }
+                //});
             }
 
             return await _submissionService.GetSubmissionByIdAsync(submission.SubmissionId) ?? throw new InvalidOperationException("فشل في حفظ البيانات");
@@ -536,11 +536,32 @@ namespace DynamicForm.Services
                 new FormField
                 {
                     FormId = formId,
+                    FieldName = "fullName",
+                    FieldType = "text",
+                    Label = "الاسم الثلاثي",
+                    IsRequired = true,
+                    DisplayOrder = startingDisplayOrder + 1,
+                    IsActive = true
+                },
+                new FormField
+                {
+                    FormId = formId,
+                    FieldName = "phoneNumber",
+                    FieldType = "text",
+                    Label = "رقم الجوال",
+                    IsRequired = true,
+                    DisplayOrder = startingDisplayOrder + 2,
+                    IsActive = true,
+                    ValidationRules = JsonSerializer.Serialize(new { type = "phone", countryCode = "SA" })
+                },
+                new FormField
+                {
+                    FormId = formId,
                     FieldName = "citizenshipStatus",
                     FieldType = "dropdown",
                     Label = "مواطن أو مقيم",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder,
+                    DisplayOrder = startingDisplayOrder + 3,
                     IsActive = true,
                     Options = JsonSerializer.Serialize(citizenshipOptions)
                 },
@@ -551,7 +572,7 @@ namespace DynamicForm.Services
                     FieldType = "dropdown",
                     Label = "قرض عقاري",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder + 1,
+                    DisplayOrder = startingDisplayOrder + 4,
                     IsActive = true,
                     Options = JsonSerializer.Serialize(mortgageOptions)
                 },
@@ -562,7 +583,7 @@ namespace DynamicForm.Services
                     FieldType = "text",
                     Label = "الراتب الشهري",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder + 2,
+                    DisplayOrder = startingDisplayOrder + 5,
                     IsActive = true,
                     ValidationRules = JsonSerializer.Serialize(new { type = "number", min = 0 })
                 },
@@ -573,7 +594,7 @@ namespace DynamicForm.Services
                     FieldType = "text",
                     Label = "الالتزامات الشهرية",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder + 3,
+                    DisplayOrder = startingDisplayOrder + 6,
                     IsActive = true,
                     ValidationRules = JsonSerializer.Serialize(new { type = "number", min = 0 })
                 }
