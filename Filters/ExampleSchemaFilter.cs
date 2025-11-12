@@ -11,6 +11,9 @@ namespace DynamicForm.Filters
         {
             if (context.Type.Name == "CreateFormDto")
             {
+                // add schema description in English
+                schema.Description = "A form for creating a new Form (job application)";
+
                 schema.Example = new OpenApiObject
                 {
                     ["name"] = new OpenApiString("نموذج طلب وظيفة"),
@@ -19,11 +22,27 @@ namespace DynamicForm.Filters
                     {
                         new OpenApiObject
                         {
-                            ["fieldName"] = new OpenApiString("applicantName"),
+                            ["fieldName"] = new OpenApiString("fullName"),
                             ["fieldType"] = new OpenApiString("text"),
-                            ["label"] = new OpenApiString("اسم المتقدم"),
+                            ["label"] = new OpenApiString("الاسم الثلاثي"),
                             ["isRequired"] = new OpenApiBoolean(true),
                             ["displayOrder"] = new OpenApiInteger(1)
+                        },
+                        new OpenApiObject
+                        {
+                            ["fieldName"] = new OpenApiString("phoneNumber"),
+                            ["fieldType"] = new OpenApiString("number"),
+                            ["label"] = new OpenApiString("رقم الجوال"),
+                            ["isRequired"] = new OpenApiBoolean(true),
+                            ["displayOrder"] = new OpenApiInteger(2)
+                        },
+                        new OpenApiObject
+                        {
+                            ["fieldName"] = new OpenApiString("birthDate"),
+                            ["fieldType"] = new OpenApiString("date"),
+                            ["label"] = new OpenApiString("تاريخ الميلاد"),
+                            ["isRequired"] = new OpenApiBoolean(true),
+                            ["displayOrder"] = new OpenApiInteger(3)
                         },
                         new OpenApiObject
                         {
@@ -37,7 +56,7 @@ namespace DynamicForm.Filters
                                 new OpenApiString("مصمم واجهات"),
                                 new OpenApiString("مدير مشروع")
                             },
-                            ["displayOrder"] = new OpenApiInteger(2)
+                            ["displayOrder"] = new OpenApiInteger(4)
                         }
                     }
                 };
@@ -54,11 +73,15 @@ namespace DynamicForm.Filters
                         ["birthDate"] = new OpenApiString("1996-03-15"),
                         ["nationalId"] = new OpenApiString("1234567890"),
                         ["nationalIdType"] = new OpenApiString("بطاقة هوية وطنية"),
-                        ["phoneNumber"] = new OpenApiString("+966501234567"),
+                        ["phoneNumber"] = new OpenApiString("+201011744192"),
                         ["email"] = new OpenApiString("ahmed.mohammed@gmail.com"),
                         ["address"] = new OpenApiString("شارع الملك فهد، حي الملز، الرياض"),
                         ["governorate"] = new OpenApiString("الرياض"),
-                        ["maritalStatus"] = new OpenApiString("متزوج")
+                        ["maritalStatus"] = new OpenApiString("متزوج"),
+                        ["citizenshipStatus"] = new OpenApiString("مواطن"),
+                        ["hasMortgage"] = new OpenApiString("نعم"),
+                        ["monthlySalary"] = new OpenApiString("15000"),
+                        ["monthlyCommitments"] = new OpenApiString("3000")
                     }
                 };
             }
@@ -66,7 +89,7 @@ namespace DynamicForm.Filters
             {
                 schema.Example = new OpenApiObject
                 {
-                    ["status"] = new OpenApiString("قيد المراجعة")
+                    ["status"] = new OpenApiString("مقبول")
                 };
             }
         }

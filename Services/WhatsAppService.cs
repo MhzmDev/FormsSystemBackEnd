@@ -52,35 +52,43 @@ namespace DynamicForm.Services
             // Remove all non-digit characters
             var cleanNumber = Regex.Replace(phoneNumber, @"[^\d]", "");
 
-            // Handle different country codes for testing
+            // Validate Saudi Arabia numbers
             if (cleanNumber.StartsWith("966")) // KSA
             {
-                if (cleanNumber.Length != 12)
+                if (cleanNumber.Length != 12 || !cleanNumber.Substring(3, 1).Equals("5"))
                 {
-                    throw new ArgumentException("Invalid KSA phone number format");
+                    throw new ArgumentException("Invalid KSA phone number format. Must be 966 followed by 5xxxxxxxx");
                 }
 
                 return cleanNumber;
             }
-            else if (cleanNumber.StartsWith("20")) // Egypt (for testing)
+            // Validate Egypt numbers  
+            else if (cleanNumber.StartsWith("20")) // Egypt
             {
-                if (cleanNumber.Length < 12 || cleanNumber.Length > 13)
+                if (cleanNumber.Length != 12 || !cleanNumber.Substring(2, 1).Equals("1"))
                 {
-                    throw new ArgumentException("Invalid Egypt phone number format");
+                    throw new ArgumentException("Invalid Egypt phone number format. Must be 20 followed by 1xxxxxxxxx");
                 }
 
                 return cleanNumber;
             }
-            else if (cleanNumber.StartsWith("5") && cleanNumber.Length == 9) // KSA without country code
+            // Handle KSA without country code
+            else if (cleanNumber.StartsWith("5") && cleanNumber.Length == 9)
             {
                 return "966" + cleanNumber;
             }
-            else if (cleanNumber.StartsWith("01") && cleanNumber.Length == 11) // Egypt without country code
+            // Handle Egypt without country code
+            else if (cleanNumber.StartsWith("01") && cleanNumber.Length == 11)
+            {
+                return "20" + cleanNumber;
+            }
+            // Handle Egypt mobile without leading zero
+            else if (cleanNumber.StartsWith("1") && cleanNumber.Length == 10)
             {
                 return "20" + cleanNumber;
             }
 
-            throw new ArgumentException("Unsupported phone number format. Please use KSA (+966) or Egypt (+20) format");
+            throw new ArgumentException("Unsupported phone number format. Please use KSA format (966-5xxxxxxxx) or Egypt format (20-1xxxxxxxxx)");
         }
 
         public async Task<bool> CreateSubscriberAsync(string phoneNumber, string fullName)

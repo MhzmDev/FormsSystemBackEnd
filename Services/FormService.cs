@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Client;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 
 namespace DynamicForm.Services
 {
@@ -31,7 +32,7 @@ namespace DynamicForm.Services
         {
             var form = await _context.Forms
                 .Include(f => f.FormFields.Where(ff => ff.IsActive))
-                .FirstOrDefaultAsync(f => f.FormId == formId && f.IsActive);
+                .FirstOrDefaultAsync(f => f.FormId == formId);
 
             if (form == null)
             {
@@ -295,12 +296,15 @@ namespace DynamicForm.Services
                 throw new ArgumentException($"الحقول التالية مطلوبة: {string.Join(", ", missingFields)}");
             }
 
+            // Pre-validation before saving to database
+            await ValidateSubmissionDataAsync(submitFormDto.Values);
+
             var submission = new FormSubmission
             {
                 FormId = formId,
                 SubmittedBy = submitFormDto.SubmittedBy,
                 SubmittedDate = DateTime.UtcNow,
-                Status = "مُرسل" // Will be updated by the approval service later
+                Status = "قيد المراجعة" // Initial status before approval processing
             };
 
             _context.FormSubmissions.Add(submission);
@@ -317,7 +321,7 @@ namespace DynamicForm.Services
                 {
                     var submissionValue = new FormSubmissionValue
                     {
-                        SubmissionId = submission.SubmissionId, // Now this has a valid value
+                        SubmissionId = submission.SubmissionId,
                         FieldId = field.FieldId,
                         FieldValue = value.Value,
                         FieldNameAtSubmission = field.FieldName,
@@ -334,7 +338,7 @@ namespace DynamicForm.Services
 
             await _context.SaveChangesAsync(); // Save the submission values
 
-            // Process approval automatically
+            // Process approval with comprehensive validation
             var approvalResult = await _approvalService.ProcessApprovalAsync(submissionValues);
 
             // Update submission with approval result
@@ -344,23 +348,21 @@ namespace DynamicForm.Services
 
             await _context.SaveChangesAsync(); // Save the updated status
 
-            // Send WhatsApp message if approved immediately
-            if (approvalResult.Status == "مقبول") // Changed from "مقبول" to "معتمد"
+            // Send WhatsApp message only if approved
+            if (approvalResult.Status == "مقبول")
             {
-                //_ = Task.Run(async () =>
-                //{
                 try
                 {
                     await SendApprovalWhatsAppMessageAsync(submission, submissionValues);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Background WhatsApp task failed for submission {SubmissionId}", submission.SubmissionId);
+                    _logger.LogError(ex, "Failed to send WhatsApp message for submission {SubmissionId}", submission.SubmissionId);
                 }
-                //});
             }
 
-            return await _submissionService.GetSubmissionByIdAsync(submission.SubmissionId) ?? throw new InvalidOperationException("فشل في حفظ البيانات");
+            return await _submissionService.GetSubmissionByIdAsync(submission.SubmissionId) ??
+                   throw new InvalidOperationException("فشل في حفظ البيانات");
         }
 
         public async Task<FormDto?> ActivateFormAsync(int formId)
@@ -431,6 +433,88 @@ namespace DynamicForm.Services
                     Options = !string.IsNullOrEmpty(f.Options) ? JsonSerializer.Deserialize<List<string>>(f.Options) : null
                 }).ToList()
             };
+        }
+
+        private async Task ValidateSubmissionDataAsync(Dictionary<string, string> values)
+        {
+            var validationErrors = new List<string>();
+
+            // Validate phone number format
+            if (values.TryGetValue("phoneNumber", out var phoneNumber))
+            {
+                try
+                {
+                    _whatsAppService.ValidateAndFormatPhoneNumber(phoneNumber);
+                }
+                catch (ArgumentException ex)
+                {
+                    validationErrors.Add($"رقم الجوال غير صحيح: {ex.Message}");
+                }
+            }
+
+            // Validate birth date and age
+            if (values.TryGetValue("birthDate", out var birthDateStr))
+            {
+                if (DateTime.TryParseExact(birthDateStr, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var birthDate))
+                {
+                    var age = CalculateAge(birthDate);
+
+                    if (age < 20)
+                    {
+                        validationErrors.Add($"العمر ({age} سنة) أقل من الحد الأدنى المطلوب (20 سنة)");
+                    }
+
+                    // Check age consistency if age field exists
+                    if (values.TryGetValue("age", out var ageStr) && int.TryParse(ageStr, out var providedAge))
+                    {
+                        if (Math.Abs(age - providedAge) > 1)
+                        {
+                            validationErrors.Add($"العمر المدخل ({providedAge} سنة) لا يتطابق مع تاريخ الميلاد (العمر الفعلي: {age} سنة)");
+                        }
+                    }
+                }
+                else
+                {
+                    validationErrors.Add("تاريخ الميلاد غير صحيح. يجب أن يكون بالصيغة: YYYY-MM-DD");
+                }
+            }
+
+            // Validate numeric fields
+            if (values.TryGetValue("monthlySalary", out var salaryStr))
+            {
+                if (!decimal.TryParse(salaryStr, out var salary) || salary <= 0)
+                {
+                    validationErrors.Add("الراتب الشهري يجب أن يكون رقم صحيح أكبر من صفر");
+                }
+            }
+
+            if (values.TryGetValue("monthlyCommitments", out var commitmentsStr))
+            {
+                if (!decimal.TryParse(commitmentsStr, out var commitments) || commitments < 0)
+                {
+                    validationErrors.Add("الالتزامات الشهرية يجب أن تكون رقم صحيح لا يقل عن صفر");
+                }
+            }
+
+            if (validationErrors.Any())
+            {
+                throw new ArgumentException($"أخطاء في البيانات المدخلة: {string.Join(", ", validationErrors)}");
+            }
+
+            await Task.CompletedTask;
+        }
+
+        private int CalculateAge(DateTime birthDate)
+        {
+            var today = DateTime.Today;
+            var age = today.Year - birthDate.Year;
+
+            if (birthDate.Date > today.AddYears(-age))
+            {
+                age--;
+            }
+
+            return age;
         }
 
         private async Task SendApprovalWhatsAppMessageAsync(FormSubmission submission, List<FormSubmissionValue> submissionValues)
@@ -547,12 +631,33 @@ namespace DynamicForm.Services
                 {
                     FormId = formId,
                     FieldName = "phoneNumber",
-                    FieldType = "text",
+                    FieldType = "number",
                     Label = "رقم الجوال",
                     IsRequired = true,
                     DisplayOrder = startingDisplayOrder + 2,
                     IsActive = true,
-                    ValidationRules = JsonSerializer.Serialize(new { type = "phone", countryCode = "SA" })
+                    ValidationRules = JsonSerializer.Serialize(new
+                    {
+                        type = "phone",
+                        pattern = @"^(966[5][0-9]{8}|20[1][0-9]{8,9})$",
+                        message = "يجب إدخال رقم جوال صحيح (السعودية: 966xxxxxxxxx أو مصر: 20xxxxxxxxxx)"
+                    })
+                },
+                new FormField
+                {
+                    FormId = formId,
+                    FieldName = "birthDate",
+                    FieldType = "date",
+                    Label = "تاريخ الميلاد",
+                    IsRequired = true,
+                    DisplayOrder = startingDisplayOrder + 3,
+                    IsActive = true,
+                    ValidationRules = JsonSerializer.Serialize(new
+                    {
+                        type = "date",
+                        maxDate = DateTime.Now.AddYears(-20).ToString("yyyy-MM-dd"),
+                        message = "يجب أن يكون العمر 20 سنة أو أكثر"
+                    })
                 },
                 new FormField
                 {
@@ -561,7 +666,7 @@ namespace DynamicForm.Services
                     FieldType = "dropdown",
                     Label = "مواطن أو مقيم",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder + 3,
+                    DisplayOrder = startingDisplayOrder + 4,
                     IsActive = true,
                     Options = JsonSerializer.Serialize(citizenshipOptions)
                 },
@@ -572,7 +677,7 @@ namespace DynamicForm.Services
                     FieldType = "dropdown",
                     Label = "قرض عقاري",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder + 4,
+                    DisplayOrder = startingDisplayOrder + 5,
                     IsActive = true,
                     Options = JsonSerializer.Serialize(mortgageOptions)
                 },
@@ -580,23 +685,35 @@ namespace DynamicForm.Services
                 {
                     FormId = formId,
                     FieldName = "monthlySalary",
-                    FieldType = "text",
+                    FieldType = "number",
                     Label = "الراتب الشهري",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder + 5,
+                    DisplayOrder = startingDisplayOrder + 6,
                     IsActive = true,
-                    ValidationRules = JsonSerializer.Serialize(new { type = "number", min = 0 })
+                    ValidationRules = JsonSerializer.Serialize(new
+                    {
+                        type = "number",
+                        min = 1,
+                        step = 1,
+                        message = "يجب إدخال راتب شهري صحيح (أرقام فقط)"
+                    })
                 },
                 new FormField
                 {
                     FormId = formId,
                     FieldName = "monthlyCommitments",
-                    FieldType = "text",
+                    FieldType = "number",
                     Label = "الالتزامات الشهرية",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder + 6,
+                    DisplayOrder = startingDisplayOrder + 7,
                     IsActive = true,
-                    ValidationRules = JsonSerializer.Serialize(new { type = "number", min = 0 })
+                    ValidationRules = JsonSerializer.Serialize(new
+                    {
+                        type = "number",
+                        min = 0,
+                        step = 1,
+                        message = "يجب إدخال التزامات شهرية صحيحة (أرقام فقط)"
+                    })
                 }
             };
 

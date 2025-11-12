@@ -161,7 +161,7 @@ namespace DynamicForm.Data
                     FieldId = 2,
                     FormId = 1,
                     FieldName = "age",
-                    FieldType = "text",
+                    FieldType = "number",
                     Label = "العمر",
                     IsRequired = true,
                     DisplayOrder = 2,
@@ -290,24 +290,24 @@ namespace DynamicForm.Data
                     FieldId = 13,
                     FormId = 1,
                     FieldName = "monthlySalary",
-                    FieldType = "text",
+                    FieldType = "number",
                     Label = "الراتب الشهري",
                     IsRequired = true,
                     DisplayOrder = 13,
                     IsActive = true,
-                    ValidationRules = JsonSerializer.Serialize(new { type = "number", min = 0 })
+                    ValidationRules = JsonSerializer.Serialize(new { type = "number", min = 1, step = 1 })
                 },
                 new FormField
                 {
                     FieldId = 14,
                     FormId = 1,
                     FieldName = "monthlyCommitments",
-                    FieldType = "text",
+                    FieldType = "number",
                     Label = "الالتزامات الشهرية",
                     IsRequired = true,
                     DisplayOrder = 14,
                     IsActive = true,
-                    ValidationRules = JsonSerializer.Serialize(new { type = "number", min = 0 })
+                    ValidationRules = JsonSerializer.Serialize(new { type = "number", min = 0, step = 1 })
                 }
             );
         }
