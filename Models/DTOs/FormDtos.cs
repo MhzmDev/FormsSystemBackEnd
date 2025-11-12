@@ -4,7 +4,7 @@ namespace DynamicForm.Models.DTOs
     {
         public string Name { get; set; } = string.Empty;
         public string? Description { get; set; }
-        public List<CreateFormFieldDto> Fields { get; set; } = new List<CreateFormFieldDto>();
+        public List<CreateFormFieldDto>? Fields { get; set; } = new List<CreateFormFieldDto>();
     }
 
     public class CreateFormFieldDto

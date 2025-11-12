@@ -147,13 +147,13 @@ namespace DynamicForm.Services
                 await _context.SaveChangesAsync();
 
                 // Calculate starting display order for mandatory fields
-                var maxDisplayOrder = createFormDto.Fields?.Max(f => f.DisplayOrder) ?? 0;
+                var maxDisplayOrder = 8;
 
                 // Add mandatory fields first
-                var mandatoryFields = await CreateMandatoryFieldsAsync(form.FormId, maxDisplayOrder + 1);
+                var mandatoryFields = await CreateMandatoryFieldsAsync(form.FormId);
                 _context.FormFields.AddRange(mandatoryFields);
 
-                foreach (var fieldDto in createFormDto.Fields!)
+                foreach (var fieldDto in createFormDto.Fields ?? Enumerable.Empty<CreateFormFieldDto>())
                 {
                     var field = new FormField
                     {
@@ -162,7 +162,7 @@ namespace DynamicForm.Services
                         FieldType = fieldDto.FieldType,
                         Label = fieldDto.Label,
                         IsRequired = fieldDto.IsRequired,
-                        DisplayOrder = fieldDto.DisplayOrder,
+                        DisplayOrder = maxDisplayOrder++,
                         Options = fieldDto.Options != null ? JsonSerializer.Serialize(fieldDto.Options) : null,
                         IsActive = true
                     };
@@ -296,15 +296,15 @@ namespace DynamicForm.Services
                 throw new ArgumentException($"الحقول التالية مطلوبة: {string.Join(", ", missingFields)}");
             }
 
-            // Pre-validation before saving to database
-            await ValidateSubmissionDataAsync(submitFormDto.Values);
+            // Get validation errors (format validation, phone, birth date, etc.)
+            var validationResult = await ValidateSubmissionDataAsync(submitFormDto.Values);
 
             var submission = new FormSubmission
             {
                 FormId = formId,
                 SubmittedBy = submitFormDto.SubmittedBy,
                 SubmittedDate = DateTime.UtcNow,
-                Status = "قيد المراجعة" // Initial status before approval processing
+                Status = "قيد المراجعة" // Initial status before processing
             };
 
             _context.FormSubmissions.Add(submission);
@@ -338,18 +338,63 @@ namespace DynamicForm.Services
 
             await _context.SaveChangesAsync(); // Save the submission values
 
-            // Process approval with comprehensive validation
-            var approvalResult = await _approvalService.ProcessApprovalAsync(submissionValues);
+            // Collect ALL errors (validation + approval)
+            var allErrors = new List<string>(validationResult.AllErrors);
+            var allErrorsEn = new List<string>(validationResult.AllErrorsEn);
 
-            // Update submission with approval result
-            submission.Status = approvalResult.Status;
-            submission.RejectionReason = approvalResult.RejectionReason;
-            submission.RejectionReasonEn = approvalResult.RejectionReasonEn;
+            // ALWAYS run approval service to get business logic errors, regardless of validation errors
+            try
+            {
+                var approvalResult = await _approvalService.ProcessApprovalAsync(submissionValues);
 
-            await _context.SaveChangesAsync(); // Save the updated status
+                // If approval service found business logic errors, add them to our collected errors
+                if (!approvalResult.IsApproved && !string.IsNullOrEmpty(approvalResult.RejectionReason))
+                {
+                    // Split multiple rejection reasons if they exist
+                    var approvalErrors = approvalResult.RejectionReason.Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries);
+                    var approvalErrorsEn = approvalResult.RejectionReasonEn?.Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries) ?? new string[0];
 
-            // Send WhatsApp message only if approved
-            if (approvalResult.Status == "مقبول")
+                    allErrors.AddRange(approvalErrors);
+                    allErrorsEn.AddRange(approvalErrorsEn);
+                }
+
+                // Set final status based on whether we have ANY errors (validation OR approval)
+                if (allErrors.Any())
+                {
+                    submission.Status = "مرفوض";
+                    submission.RejectionReason = string.Join(", ", allErrors);
+                    submission.RejectionReasonEn = string.Join(", ", allErrorsEn);
+
+                    _logger.LogWarning("Submission {SubmissionId} rejected due to errors: {ErrorsAr} | {ErrorsEn}",
+                        submission.SubmissionId, string.Join(", ", allErrors), string.Join(", ", allErrorsEn));
+                }
+                else
+                {
+                    // No errors at all - approved
+                    submission.Status = "مقبول";
+                    submission.RejectionReason = null;
+                    submission.RejectionReasonEn = null;
+
+                    _logger.LogInformation("Submission {SubmissionId} approved successfully", submission.SubmissionId);
+                }
+            }
+            catch (Exception ex)
+            {
+                // If approval service fails, still save validation errors and mark as system error
+                allErrors.Add("خطأ في نظام المراجعة");
+                allErrorsEn.Add("System review error");
+
+                submission.Status = "مرفوض";
+                submission.RejectionReason = string.Join(", ", allErrors);
+                submission.RejectionReasonEn = string.Join(", ", allErrorsEn);
+
+                _logger.LogError(ex, "Error in approval service for submission {SubmissionId}, saving with validation errors", submission.SubmissionId);
+            }
+
+            await _context.SaveChangesAsync(); // Save the final status and errors
+
+            // Send WhatsApp message only if approved (no errors)
+            if (submission.Status == "مقبول")
             {
                 try
                 {
@@ -435,11 +480,11 @@ namespace DynamicForm.Services
             };
         }
 
-        private async Task ValidateSubmissionDataAsync(Dictionary<string, string> values)
+        private async Task<ValidationResult> ValidateSubmissionDataAsync(Dictionary<string, string> values)
         {
-            var validationErrors = new List<string>();
+            var result = new ValidationResult();
 
-            // Validate phone number format
+            // Validate phone number format (now non-critical - saved to database)
             if (values.TryGetValue("phoneNumber", out var phoneNumber))
             {
                 try
@@ -448,20 +493,23 @@ namespace DynamicForm.Services
                 }
                 catch (ArgumentException ex)
                 {
-                    validationErrors.Add($"رقم الجوال غير صحيح: {ex.Message}");
+                    result.AllErrors.Add($"رقم الجوال غير صحيح: برجاء ادخال الرقم الصحيح مثال (966-5xxxxxxxx)");
+                    result.AllErrorsEn.Add($"Invalid phone number: {ex.Message}");
                 }
             }
 
-            // Validate birth date and age
+            // Validate birth date and age (all validation errors are now non-critical)
             if (values.TryGetValue("birthDate", out var birthDateStr))
             {
                 if (DateTime.TryParseExact(birthDateStr, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var birthDate))
                 {
                     var age = CalculateAge(birthDate);
 
+                    // Age validation - now saved to database
                     if (age < 20)
                     {
-                        validationErrors.Add($"العمر ({age} سنة) أقل من الحد الأدنى المطلوب (20 سنة)");
+                        result.AllErrors.Add($"العمر ({age} سنة) أقل من الحد الأدنى المطلوب (20 سنة)");
+                        result.AllErrorsEn.Add($"Age ({age} years) is below the minimum required (20 years)");
                     }
 
                     // Check age consistency if age field exists
@@ -469,22 +517,26 @@ namespace DynamicForm.Services
                     {
                         if (Math.Abs(age - providedAge) > 1)
                         {
-                            validationErrors.Add($"العمر المدخل ({providedAge} سنة) لا يتطابق مع تاريخ الميلاد (العمر الفعلي: {age} سنة)");
+                            result.AllErrors.Add($"العمر المدخل ({providedAge} سنة) لا يتطابق مع تاريخ الميلاد (العمر الفعلي: {age} سنة)");
+                            result.AllErrorsEn.Add($"Provided age ({providedAge} years) does not match birth date (actual age: {age} years)");
                         }
                     }
                 }
                 else
                 {
-                    validationErrors.Add("تاريخ الميلاد غير صحيح. يجب أن يكون بالصيغة: YYYY-MM-DD");
+                    // Birth date format - now saved to database instead of throwing
+                    result.AllErrors.Add("تاريخ الميلاد غير صحيح. يجب أن يكون بالصيغة: YYYY-MM-DD");
+                    result.AllErrorsEn.Add("Invalid birth date format. Must be in format: YYYY-MM-DD");
                 }
             }
 
-            // Validate numeric fields
+            // Validate numeric fields (now saved to database instead of throwing)
             if (values.TryGetValue("monthlySalary", out var salaryStr))
             {
                 if (!decimal.TryParse(salaryStr, out var salary) || salary <= 0)
                 {
-                    validationErrors.Add("الراتب الشهري يجب أن يكون رقم صحيح أكبر من صفر");
+                    result.AllErrors.Add("الراتب الشهري يجب أن يكون رقم صحيح أكبر من صفر");
+                    result.AllErrorsEn.Add("Monthly salary must be a valid number greater than zero");
                 }
             }
 
@@ -492,16 +544,12 @@ namespace DynamicForm.Services
             {
                 if (!decimal.TryParse(commitmentsStr, out var commitments) || commitments < 0)
                 {
-                    validationErrors.Add("الالتزامات الشهرية يجب أن تكون رقم صحيح لا يقل عن صفر");
+                    result.AllErrors.Add("الالتزامات الشهرية يجب أن تكون رقم صحيح لا يقل عن صفر");
+                    result.AllErrorsEn.Add("Monthly commitments must be a valid number not less than zero");
                 }
             }
 
-            if (validationErrors.Any())
-            {
-                throw new ArgumentException($"أخطاء في البيانات المدخلة: {string.Join(", ", validationErrors)}");
-            }
-
-            await Task.CompletedTask;
+            return await Task.FromResult(result);
         }
 
         private int CalculateAge(DateTime birthDate)
@@ -574,6 +622,10 @@ namespace DynamicForm.Services
                     v.FieldNameAtSubmission.ToLower().Contains("commitment") ||
                     v.LabelAtSubmission.Contains("التزام"));
 
+                var serviceDurationValue = submissionValues.FirstOrDefault(v =>
+                    v.FieldNameAtSubmission.ToLower().Contains("serviceduration") ||
+                    v.LabelAtSubmission.Contains("مدة خدمة"));
+
                 var templateParams = new Dictionary<string, string>
                 {
                     ["BODY_1"] = submission.SubmissionId.ToString(), // رقم الطلب: {{1}}
@@ -583,7 +635,7 @@ namespace DynamicForm.Services
                     ["BODY_5"] = birthDateValue?.FieldValue ?? "غير محدد", // تاريخ الميلاد: {{5}}
                     ["BODY_6"] = salaryValue?.FieldValue ?? "غير محدد", // الراتب: {{6}}
                     ["BODY_7"] = commitmentsValue?.FieldValue ?? "غير محدد", // الالتزامات: {{7}}
-                    ["BODY_8"] = "جديد" // مدة الخدمة: {{8}} - default for new customers
+                    ["BODY_8"] = serviceDurationValue?.FieldValue ?? "جديد" // مدة الخدمة: {{8}} - default for new customers
                 };
 
                 // Send WhatsApp template message
@@ -610,7 +662,7 @@ namespace DynamicForm.Services
             }
         }
 
-        private async Task<List<FormField>> CreateMandatoryFieldsAsync(int formId, int startingDisplayOrder)
+        private async Task<List<FormField>> CreateMandatoryFieldsAsync(int formId)
         {
             var citizenshipOptions = new List<string> { "مواطن", "مقيم" };
             var mortgageOptions = new List<string> { "نعم", "لا" };
@@ -624,7 +676,7 @@ namespace DynamicForm.Services
                     FieldType = "text",
                     Label = "الاسم الثلاثي",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder + 1,
+                    DisplayOrder = 1,
                     IsActive = true
                 },
                 new FormField
@@ -634,7 +686,7 @@ namespace DynamicForm.Services
                     FieldType = "number",
                     Label = "رقم الجوال",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder + 2,
+                    DisplayOrder = 2,
                     IsActive = true,
                     ValidationRules = JsonSerializer.Serialize(new
                     {
@@ -650,7 +702,7 @@ namespace DynamicForm.Services
                     FieldType = "date",
                     Label = "تاريخ الميلاد",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder + 3,
+                    DisplayOrder = 3,
                     IsActive = true,
                     ValidationRules = JsonSerializer.Serialize(new
                     {
@@ -666,7 +718,7 @@ namespace DynamicForm.Services
                     FieldType = "dropdown",
                     Label = "مواطن أو مقيم",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder + 4,
+                    DisplayOrder = 4,
                     IsActive = true,
                     Options = JsonSerializer.Serialize(citizenshipOptions)
                 },
@@ -677,7 +729,7 @@ namespace DynamicForm.Services
                     FieldType = "dropdown",
                     Label = "قرض عقاري",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder + 5,
+                    DisplayOrder = 5,
                     IsActive = true,
                     Options = JsonSerializer.Serialize(mortgageOptions)
                 },
@@ -688,7 +740,7 @@ namespace DynamicForm.Services
                     FieldType = "number",
                     Label = "الراتب الشهري",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder + 6,
+                    DisplayOrder = 6,
                     IsActive = true,
                     ValidationRules = JsonSerializer.Serialize(new
                     {
@@ -705,7 +757,7 @@ namespace DynamicForm.Services
                     FieldType = "number",
                     Label = "الالتزامات الشهرية",
                     IsRequired = true,
-                    DisplayOrder = startingDisplayOrder + 7,
+                    DisplayOrder = 7,
                     IsActive = true,
                     ValidationRules = JsonSerializer.Serialize(new
                     {
@@ -719,5 +771,12 @@ namespace DynamicForm.Services
 
             return mandatoryFields;
         }
+    }
+
+    public class ValidationResult
+    {
+        public List<string> AllErrors { get; set; } = new List<string>();
+        public List<string> AllErrorsEn { get; set; } = new List<string>();
+        public bool HasErrors => AllErrors.Any();
     }
 }
