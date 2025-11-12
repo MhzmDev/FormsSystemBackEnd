@@ -538,6 +538,12 @@ namespace DynamicForm.Services
                     result.AllErrors.Add("الراتب الشهري يجب أن يكون رقم صحيح أكبر من صفر");
                     result.AllErrorsEn.Add("Monthly salary must be a valid number greater than zero");
                 }
+                // NEW: Add minimum salary validation
+                else if (salary < 3000)
+                {
+                    result.AllErrors.Add($"عذراً، الراتب الشهري يجب أن يكون 3000 ريال أو أكثر (الراتب المدخل: {salary:N0} ريال)");
+                    result.AllErrorsEn.Add($"Sorry, monthly salary must be 3,000 SAR or more (provided salary: {salary:N0} SAR)");
+                }
             }
 
             if (values.TryGetValue("monthlyCommitments", out var commitmentsStr))
@@ -546,6 +552,26 @@ namespace DynamicForm.Services
                 {
                     result.AllErrors.Add("الالتزامات الشهرية يجب أن تكون رقم صحيح لا يقل عن صفر");
                     result.AllErrorsEn.Add("Monthly commitments must be a valid number not less than zero");
+                }
+            }
+
+            // NEW: Service duration validation
+            if (values.TryGetValue("ServiceDuration", out var serviceDuration))
+            {
+                if (serviceDuration == "اقل من ٣ شهور")
+                {
+                    result.AllErrors.Add("عذراً، مدة الخدمة يجب أن تكون أكثر من 3 شهور");
+                    result.AllErrorsEn.Add("Sorry, service duration must be more than 3 months");
+                }
+            }
+
+            // NEW: Job sector validation
+            if (values.TryGetValue("jobSector", out var jobSector))
+            {
+                if (jobSector == "متقاعد")
+                {
+                    result.AllErrors.Add("عذراً، هذا النموذج غير متاح للمتقاعدين");
+                    result.AllErrorsEn.Add("Sorry, this form is not available for retirees");
                 }
             }
 
