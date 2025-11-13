@@ -737,7 +737,7 @@ namespace DynamicForm.Services
                     FormId = formId,
                     FieldName = "birthDate",
                     FieldType = "dropdown", // changed from date to dropdown
-                    Label = "تاريخ الميلاد",
+                    Label = "العمر",
                     IsRequired = true,
                     DisplayOrder = 3,
                     IsActive = true,
@@ -748,7 +748,7 @@ namespace DynamicForm.Services
                     FormId = formId,
                     FieldName = "citizenshipStatus",
                     FieldType = "dropdown",
-                    Label = "العمر",
+                    Label = "مواطن أو مقيم",
                     IsRequired = true,
                     DisplayOrder = 4,
                     IsActive = true,
