@@ -498,37 +498,47 @@ namespace DynamicForm.Services
                 }
             }
 
-            // Validate birth date and age (all validation errors are now non-critical)
-            if (values.TryGetValue("birthDate", out var birthDateStr))
+            // MODIFIED: Age validation using dropdown selection instead of birth date calculation
+            if (values.TryGetValue("birthDate", out var ageSelection)) // Still using "birthDate" key for compatibility
             {
-                if (DateTime.TryParseExact(birthDateStr, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var birthDate))
+                if (ageSelection == "أصغر من 20 سنة")
                 {
-                    var age = CalculateAge(birthDate);
-
-                    // Age validation - now saved to database
-                    if (age < 20)
-                    {
-                        result.AllErrors.Add($"العمر ({age} سنة) أقل من الحد الأدنى المطلوب (20 سنة)");
-                        result.AllErrorsEn.Add($"Age ({age} years) is below the minimum required (20 years)");
-                    }
-
-                    // Check age consistency if age field exists
-                    if (values.TryGetValue("age", out var ageStr) && int.TryParse(ageStr, out var providedAge))
-                    {
-                        if (Math.Abs(age - providedAge) > 1)
-                        {
-                            result.AllErrors.Add($"العمر المدخل ({providedAge} سنة) لا يتطابق مع تاريخ الميلاد (العمر الفعلي: {age} سنة)");
-                            result.AllErrorsEn.Add($"Provided age ({providedAge} years) does not match birth date (actual age: {age} years)");
-                        }
-                    }
-                }
-                else
-                {
-                    // Birth date format - now saved to database instead of throwing
-                    result.AllErrors.Add("تاريخ الميلاد غير صحيح. يجب أن يكون بالصيغة: YYYY-MM-DD");
-                    result.AllErrorsEn.Add("Invalid birth date format. Must be in format: YYYY-MM-DD");
+                    result.AllErrors.Add("العمر أقل من الحد الأدنى المطلوب (20 سنة)");
+                    result.AllErrorsEn.Add("Age is below the minimum required (20 years)");
                 }
             }
+
+            // Validate birth date and age (all validation errors are now non-critical)
+            //if (values.TryGetValue("birthDate", out var birthDateStr))
+            //{
+            //    if (DateTime.TryParseExact(birthDateStr, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var birthDate))
+            //    {
+            //        var age = CalculateAge(birthDate);
+
+            //        // Age validation - now saved to database
+            //        if (age < 20)
+            //        {
+            //            result.AllErrors.Add($"العمر ({age} سنة) أقل من الحد الأدنى المطلوب (20 سنة)");
+            //            result.AllErrorsEn.Add($"Age ({age} years) is below the minimum required (20 years)");
+            //        }
+
+            //        // Check age consistency if age field exists
+            //        if (values.TryGetValue("age", out var ageStr) && int.TryParse(ageStr, out var providedAge))
+            //        {
+            //            if (Math.Abs(age - providedAge) > 1)
+            //            {
+            //                result.AllErrors.Add($"العمر المدخل ({providedAge} سنة) لا يتطابق مع تاريخ الميلاد (العمر الفعلي: {age} سنة)");
+            //                result.AllErrorsEn.Add($"Provided age ({providedAge} years) does not match birth date (actual age: {age} years)");
+            //            }
+            //        }
+            //    }
+            //    else
+            //    {
+            //        // Birth date format - now saved to database instead of throwing
+            //        result.AllErrors.Add("تاريخ الميلاد غير صحيح. يجب أن يكون بالصيغة: YYYY-MM-DD");
+            //        result.AllErrorsEn.Add("Invalid birth date format. Must be in format: YYYY-MM-DD");
+            //    }
+            //}
 
             // Validate numeric fields (now saved to database instead of throwing)
             if (values.TryGetValue("monthlySalary", out var salaryStr))
@@ -692,6 +702,7 @@ namespace DynamicForm.Services
         {
             var citizenshipOptions = new List<string> { "مواطن", "مقيم" };
             var mortgageOptions = new List<string> { "نعم", "لا" };
+            var ageOptions = new List<string> { "أكبر من 20 سنة", "أصغر من 20 سنة" }; // NEW: Age options
 
             var mandatoryFields = new List<FormField>
             {
@@ -725,11 +736,12 @@ namespace DynamicForm.Services
                 {
                     FormId = formId,
                     FieldName = "birthDate",
-                    FieldType = "date",
+                    FieldType = "dropdown", // changed from date to dropdown
                     Label = "تاريخ الميلاد",
                     IsRequired = true,
                     DisplayOrder = 3,
                     IsActive = true,
+                    Options = JsonSerializer.Serialize(ageOptions), // NEW: Age options
                     ValidationRules = JsonSerializer.Serialize(new
                     {
                         type = "date",
@@ -742,7 +754,7 @@ namespace DynamicForm.Services
                     FormId = formId,
                     FieldName = "citizenshipStatus",
                     FieldType = "dropdown",
-                    Label = "مواطن أو مقيم",
+                    Label = "العمر",
                     IsRequired = true,
                     DisplayOrder = 4,
                     IsActive = true,
