@@ -141,6 +141,7 @@ namespace DynamicForm.Data
             var maritalStatusOptions = new List<string> { "أعزب", "متزوج", "مطلق", "أرمل" };
             var citizenshipOptions = new List<string> { "مواطن", "مقيم" };
             var mortgageOptions = new List<string> { "نعم", "لا" };
+            var ageOptions = new List<string> { "أكبر من 20 سنة", "أصغر من 20 سنة" };
 
             // Default form fields with Arabic labels
             modelBuilder.Entity<FormField>().HasData(
@@ -171,13 +172,13 @@ namespace DynamicForm.Data
                 new FormField
                 {
                     FieldId = 3,
-                    FormId = 1,
                     FieldName = "birthDate",
-                    FieldType = "date",
+                    FieldType = "dropdown", // changed from date to dropdown
                     Label = "تاريخ الميلاد",
                     IsRequired = true,
                     DisplayOrder = 3,
-                    IsActive = true
+                    IsActive = true,
+                    Options = JsonSerializer.Serialize(ageOptions)
                 },
                 new FormField
                 {

@@ -741,13 +741,7 @@ namespace DynamicForm.Services
                     IsRequired = true,
                     DisplayOrder = 3,
                     IsActive = true,
-                    Options = JsonSerializer.Serialize(ageOptions), // NEW: Age options
-                    ValidationRules = JsonSerializer.Serialize(new
-                    {
-                        type = "date",
-                        maxDate = DateTime.Now.AddYears(-20).ToString("yyyy-MM-dd"),
-                        message = "يجب أن يكون العمر 20 سنة أو أكثر"
-                    })
+                    Options = JsonSerializer.Serialize(ageOptions) // NEW: Age options
                 },
                 new FormField
                 {
