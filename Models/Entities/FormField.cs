@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace DynamicForm.Models
+namespace DynamicForm.Models.Entities
 {
     public class FormField
     {

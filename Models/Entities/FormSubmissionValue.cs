@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace DynamicForm.Models
+namespace DynamicForm.Models.Entities
 {
     public class FormSubmissionValue
     {
@@ -18,15 +18,15 @@ namespace DynamicForm.Models
         [Required]
         [StringLength(100)]
         public string FieldNameAtSubmission { get; set; } = string.Empty;
-        
+
         [Required]
         [StringLength(50)]
         public string FieldTypeAtSubmission { get; set; } = string.Empty;
-        
+
         [Required]
         [StringLength(200)]
         public string LabelAtSubmission { get; set; } = string.Empty;
-        
+
         [StringLength(2000)]
         public string? OptionsAtSubmission { get; set; }
 

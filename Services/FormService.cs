@@ -1,25 +1,32 @@
 ﻿using Azure;
 using DynamicForm.Data;
-using DynamicForm.Models;
 using DynamicForm.Models.DTOs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Client;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
+using Microsoft.Extensions.Caching.Memory;
+using DynamicForm.Models.Entities;
 
 namespace DynamicForm.Services
 {
     public class FormService : IFormService
     {
+        private const string ActiveFormCacheKey = "ActiveForm";
         private readonly IApprovalService _approvalService;
+        private readonly IMemoryCache _cache;
         private readonly ApplicationDbContext _context;
         private readonly IFieldValidationService _fieldValidationService;
         private readonly ILogger<FormService> _logger;
+        private readonly INotificationService _notificationService; // NEW
         private readonly ISubmissionService _submissionService;
         private readonly IWhatsAppService _whatsAppService;
 
-        public FormService(ApplicationDbContext context, IApprovalService approvalService, IWhatsAppService whatsAppService, ILogger<FormService> logger, ISubmissionService submissionService, IFieldValidationService fieldValidationService)
+        public FormService(ApplicationDbContext context, IApprovalService approvalService,
+            IWhatsAppService whatsAppService, ILogger<FormService> logger, ISubmissionService submissionService,
+            IFieldValidationService fieldValidationService, INotificationService notificationService, // NEW
+            IMemoryCache cache) // ✅ Add cache
         {
             _context = context;
             _approvalService = approvalService;
@@ -27,6 +34,8 @@ namespace DynamicForm.Services
             _logger = logger;
             _submissionService = submissionService;
             _fieldValidationService = fieldValidationService;
+            _notificationService = notificationService; // NEW
+            _cache = cache;
         }
 
         public async Task<FormDto?> GetFormByIdAsync(int formId)
@@ -55,7 +64,9 @@ namespace DynamicForm.Services
                     Label = f.Label,
                     IsRequired = f.IsRequired,
                     DisplayOrder = f.DisplayOrder,
-                    Options = !string.IsNullOrEmpty(f.Options) ? JsonSerializer.Deserialize<List<string>>(f.Options) : null,
+                    Options = !string.IsNullOrEmpty(f.Options)
+                        ? JsonSerializer.Deserialize<List<string>>(f.Options)
+                        : null,
                     ValidationRules = !string.IsNullOrEmpty(f.ValidationRules)
                         ? JsonSerializer.Deserialize<ValidationRuleDto>(f.ValidationRules)
                         : null
@@ -106,7 +117,9 @@ namespace DynamicForm.Services
                     Label = f.Label,
                     IsRequired = f.IsRequired,
                     DisplayOrder = f.DisplayOrder,
-                    Options = !string.IsNullOrEmpty(f.Options) ? JsonSerializer.Deserialize<List<string>>(f.Options) : null,
+                    Options = !string.IsNullOrEmpty(f.Options)
+                        ? JsonSerializer.Deserialize<List<string>>(f.Options)
+                        : null,
                     ValidationRules = !string.IsNullOrEmpty(f.ValidationRules)
                         ? JsonSerializer.Deserialize<ValidationRuleDto>(f.ValidationRules)
                         : null
@@ -172,7 +185,9 @@ namespace DynamicForm.Services
                         DisplayOrder = maxDisplayOrder++,
                         Options = fieldDto.Options != null ? JsonSerializer.Serialize(fieldDto.Options) : null,
                         IsActive = true,
-                        ValidationRules = fieldDto.ValidationRules != null ? JsonSerializer.Serialize(fieldDto.ValidationRules) : null
+                        ValidationRules = fieldDto.ValidationRules != null
+                            ? JsonSerializer.Serialize(fieldDto.ValidationRules)
+                            : null
                     };
 
                     _context.FormFields.Add(field);
@@ -181,9 +196,11 @@ namespace DynamicForm.Services
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                return await GetFormByIdAsync(form.FormId) ?? throw new InvalidOperationException("فشل في إنشاء النموذج");
-            }
-            catch
+                _cache.Remove(ActiveFormCacheKey); // ✅ Clear cache
+
+                return await GetFormByIdAsync(form.FormId) ??
+                       throw new InvalidOperationException("فشل في إنشاء النموذج");
+            } catch
             {
                 await transaction.RollbackAsync();
 
@@ -211,27 +228,97 @@ namespace DynamicForm.Services
                 form.ModifiedDate = DateTime.UtcNow;
 
                 var existingFields = form.FormFields.ToList();
+                var updateFieldNames = updateFormDto.Fields.Select(f => f.FieldName).ToHashSet();
 
+                // ✅ Define protected mandatory fields
+                var mandatoryFieldNames = new HashSet<string>
+                {
+                    "fullName", "phoneNumber", "birthDate", "citizenshipStatus",
+                    "hasMortgage", "monthlySalary", "monthlyCommitments"
+                };
+
+                // Update or reactivate existing fields
                 foreach (var existingField in existingFields)
                 {
                     var updatedField = updateFormDto.Fields.FirstOrDefault(f => f.FieldName == existingField.FieldName);
 
                     if (updatedField != null)
                     {
-                        existingField.Label = updatedField.Label;
-                        existingField.FieldType = updatedField.FieldType;
-                        existingField.IsRequired = updatedField.IsRequired;
-                        existingField.DisplayOrder = updatedField.DisplayOrder;
-                        existingField.Options = updatedField.Options != null ? JsonSerializer.Serialize(updatedField.Options) : null;
+                        // ✅ Protect mandatory fields from destructive changes
+                         if (mandatoryFieldNames.Contains(existingField.FieldName))
+                        {
+                            // Only allow label updates for mandatory fields
+                            existingField.Label = updatedField.Label;
+
+                            _logger.LogWarning(
+                                "Attempted to modify mandatory field {FieldName}, only label was updated",
+                                existingField.FieldName);
+                        }
+                        else
+                        {
+                            // ✅ Validate field type changes for non-mandatory fields
+                            if (existingField.FieldType != updatedField.FieldType)
+                            {
+                                // Check if field has submissions
+                                var hasSubmissions = await _context.FormSubmissionValues
+                                    .AnyAsync(sv => sv.FieldId == existingField.FieldId);
+
+                                if (hasSubmissions)
+                                {
+                                    _logger.LogWarning(
+                                        "Field {FieldName} has existing submissions, type change from {OldType} to {NewType} may cause data inconsistency",
+                                        existingField.FieldName, existingField.FieldType, updatedField.FieldType);
+                                }
+                            }
+
+                            existingField.Label = updatedField.Label;
+                            existingField.FieldType = updatedField.FieldType;
+                            existingField.IsRequired = updatedField.IsRequired;
+                            existingField.DisplayOrder = updatedField.DisplayOrder;
+
+                            existingField.Options = updatedField.Options != null
+                                ? JsonSerializer.Serialize(updatedField.Options)
+                                : null;
+
+                            existingField.ValidationRules = updatedField.ValidationRules != null
+                                ? JsonSerializer.Serialize(updatedField.ValidationRules)
+                                : null;
+                        }
+
                         existingField.IsActive = true;
                         existingField.ValidationRules = updatedField.ValidationRules != null ? JsonSerializer.Serialize(updatedField.ValidationRules) : null;
                     }
                     else
                     {
+                        // ✅ Prevent deactivating mandatory fields
+                        if (mandatoryFieldNames.Contains(existingField.FieldName))
+                        {
+                            _logger.LogError(
+                                "Attempted to deactivate mandatory field {FieldName}, update rejected",
+                                existingField.FieldName);
+
+                            throw new InvalidOperationException(
+                                $"لا يمكن حذف أو تعطيل الحقل الإلزامي: {existingField.Label}");
+                        }
+
                         existingField.IsActive = false;
                     }
                 }
 
+                // ✅ Validate display order uniqueness
+                var displayOrders = updateFormDto.Fields
+                    .GroupBy(f => f.DisplayOrder)
+                    .Where(g => g.Count() > 1)
+                    .Select(g => g.Key)
+                    .ToList();
+
+                if (displayOrders.Any())
+                {
+                    throw new InvalidOperationException(
+                        $"خطأ: ترتيب العرض مكرر للأرقام التالية: {string.Join(", ", displayOrders)}");
+                }
+
+                // Add only truly new fields
                 var existingFieldNames = existingFields.Select(f => f.FieldName).ToHashSet();
                 var newFields = updateFormDto.Fields.Where(f => !existingFieldNames.Contains(f.FieldName));
 
@@ -245,19 +332,35 @@ namespace DynamicForm.Services
                         Label = newFieldDto.Label,
                         IsRequired = newFieldDto.IsRequired,
                         DisplayOrder = newFieldDto.DisplayOrder,
-                        Options = newFieldDto.Options != null ? JsonSerializer.Serialize(newFieldDto.Options) : null,
+                        Options = newFieldDto.Options != null
+                            ? JsonSerializer.Serialize(newFieldDto.Options)
+                            : null,
+                        ValidationRules = newFieldDto.ValidationRules != null
+                            ? JsonSerializer.Serialize(newFieldDto.ValidationRules)
+                            : null,
                         IsActive = true
                     };
 
                     _context.FormFields.Add(newField);
                 }
 
+                // ✅ Final validation before commit
+                var activeFieldsCount = form.FormFields.Count(f => f.IsActive);
+
+                if (activeFieldsCount < mandatoryFieldNames.Count)
+                {
+                    throw new InvalidOperationException(
+                        $"خطأ: يجب أن يحتوي النموذج على {mandatoryFieldNames.Count} حقول إلزامية على الأقل");
+                }
+
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
+                _logger.LogInformation("Form {FormId} updated successfully with {FieldCount} active fields",
+                    formId, activeFieldsCount);
+
                 return await GetFormByIdAsync(formId);
-            }
-            catch
+            } catch
             {
                 await transaction.RollbackAsync();
 
@@ -283,140 +386,25 @@ namespace DynamicForm.Services
 
         public async Task<FormSubmissionResponseDto> SubmitFormAsync(int formId, SubmitFormDto submitFormDto)
         {
-            var form = await _context.Forms
-                .Include(f => f.FormFields)
-                .FirstOrDefaultAsync(f => f.FormId == formId && f.IsActive);
+            var form = await GetActiveFormOrThrowAsync(formId);
+            ValidateRequiredFields(form, submitFormDto.Values);
 
-            if (form == null)
-            {
-                throw new ArgumentException("النموذج غير موجود أو غير نشط");
-            }
-
-            var requiredFields = form.FormFields.Where(f => f.IsRequired && f.IsActive).ToList();
-
-            var missingFields = requiredFields
-                .Where(f => !submitFormDto.Values.ContainsKey(f.FieldName) ||
-                            string.IsNullOrWhiteSpace(submitFormDto.Values[f.FieldName]))
-                .Select(f => f.Label)
-                .ToList();
-
-            if (missingFields.Any())
-            {
-                throw new ArgumentException($"الحقول التالية مطلوبة: {string.Join(", ", missingFields)}");
-            }
-
-            // Get validation errors (format validation, phone, birth date, etc.)
             var validationResult = await ValidateSubmissionDataAsync(submitFormDto.Values);
 
-            var submission = new FormSubmission
+            var submission = await CreateSubmissionAsync(formId, submitFormDto);
+
+            var submissionValues = await CreateSubmissionValuesAsync(submission.SubmissionId, form, submitFormDto.Values);
+
+            await ProcessSubmissionApprovalAsync(submission, submissionValues, validationResult);
+            await _context.SaveChangesAsync();
+
+            if (submission.Status == FormConstants.SubmissionStatus.Approved)
             {
-                FormId = formId,
-                SubmittedBy = submitFormDto.SubmittedBy,
-                SubmittedDate = DateTime.UtcNow,
-                Status = "قيد المراجعة" // Initial status before processing
-            };
-
-            _context.FormSubmissions.Add(submission);
-            await _context.SaveChangesAsync(); // Save first to get the SubmissionId
-
-            // Now create submission values with the correct SubmissionId
-            var submissionValues = new List<FormSubmissionValue>();
-
-            foreach (var value in submitFormDto.Values)
-            {
-                var field = form.FormFields.FirstOrDefault(f => f.FieldName == value.Key);
-
-                if (field != null)
-                {
-                    var submissionValue = new FormSubmissionValue
-                    {
-                        SubmissionId = submission.SubmissionId,
-                        FieldId = field.FieldId,
-                        FieldValue = value.Value,
-                        FieldNameAtSubmission = field.FieldName,
-                        FieldTypeAtSubmission = field.FieldType,
-                        LabelAtSubmission = field.Label,
-                        OptionsAtSubmission = field.Options,
-                        CreatedDate = DateTime.UtcNow
-                    };
-
-                    _context.FormSubmissionValues.Add(submissionValue);
-                    submissionValues.Add(submissionValue);
-                }
+                await _notificationService.SendApprovalNotificationAsync(submission, submissionValues);
             }
 
-            await _context.SaveChangesAsync(); // Save the submission values
-
-            // Collect ALL errors (validation + approval)
-            var allErrors = new List<string>(validationResult.AllErrors);
-            var allErrorsEn = new List<string>(validationResult.AllErrorsEn);
-
-            // ALWAYS run approval service to get business logic errors, regardless of validation errors
-            try
-            {
-                var approvalResult = await _approvalService.ProcessApprovalAsync(submissionValues);
-
-                // If approval service found business logic errors, add them to our collected errors
-                if (!approvalResult.IsApproved && !string.IsNullOrEmpty(approvalResult.RejectionReason))
-                {
-                    // Split multiple rejection reasons if they exist
-                    var approvalErrors = approvalResult.RejectionReason.Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries);
-                    var approvalErrorsEn = approvalResult.RejectionReasonEn?.Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries) ?? new string[0];
-
-                    allErrors.AddRange(approvalErrors);
-                    allErrorsEn.AddRange(approvalErrorsEn);
-                }
-
-                // Set final status based on whether we have ANY errors (validation OR approval)
-                if (allErrors.Any())
-                {
-                    submission.Status = "مرفوض";
-                    submission.RejectionReason = string.Join(", ", allErrors);
-                    submission.RejectionReasonEn = string.Join(", ", allErrorsEn);
-
-                    _logger.LogWarning("Submission {SubmissionId} rejected due to errors: {ErrorsAr} | {ErrorsEn}",
-                        submission.SubmissionId, string.Join(", ", allErrors), string.Join(", ", allErrorsEn));
-                }
-                else
-                {
-                    // No errors at all - approved
-                    submission.Status = "مقبول";
-                    submission.RejectionReason = null;
-                    submission.RejectionReasonEn = null;
-
-                    _logger.LogInformation("Submission {SubmissionId} approved successfully", submission.SubmissionId);
-                }
-            }
-            catch (Exception ex)
-            {
-                // If approval service fails, still save validation errors and mark as system error
-                allErrors.Add("خطأ في نظام المراجعة");
-                allErrorsEn.Add("System review error");
-
-                submission.Status = "مرفوض";
-                submission.RejectionReason = string.Join(", ", allErrors);
-                submission.RejectionReasonEn = string.Join(", ", allErrorsEn);
-
-                _logger.LogError(ex, "Error in approval service for submission {SubmissionId}, saving with validation errors", submission.SubmissionId);
-            }
-
-            await _context.SaveChangesAsync(); // Save the final status and errors
-
-            // Send WhatsApp message only if approved (no errors)
-            if (submission.Status == "مقبول")
-            {
-                try
-                {
-                    await SendApprovalWhatsAppMessageAsync(submission, submissionValues);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to send WhatsApp message for submission {SubmissionId}", submission.SubmissionId);
-                }
-            }
-
-            return await _submissionService.GetSubmissionByIdAsync(submission.SubmissionId) ??
-                   throw new InvalidOperationException("فشل في حفظ البيانات");
+            return await _submissionService.GetSubmissionByIdAsync(submission.SubmissionId)
+                   ?? throw new InvalidOperationException("فشل في حفظ البيانات");
         }
 
         public async Task<FormDto?> ActivateFormAsync(int formId)
@@ -449,8 +437,7 @@ namespace DynamicForm.Services
                 await transaction.CommitAsync();
 
                 return await GetFormByIdAsync(formId);
-            }
-            catch
+            } catch
             {
                 await transaction.RollbackAsync();
 
@@ -460,33 +447,122 @@ namespace DynamicForm.Services
 
         public async Task<FormDto?> GetActiveFormAsync()
         {
-            var form = await _context.Forms
-                .Include(f => f.FormFields.Where(ff => ff.IsActive))
-                .FirstOrDefaultAsync(f => f.IsActive);
-
-            if (form == null)
+            return await _cache.GetOrCreateAsync(ActiveFormCacheKey, async entry =>
             {
-                return null;
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30);
+
+                var form = await _context.Forms
+                    .Include(f => f.FormFields.Where(ff => ff.IsActive))
+                    .FirstOrDefaultAsync(f => f.IsActive);
+
+                return form == null ? null : MapToFormDto(form);
+            });
+        }
+
+        private async Task<Form> GetActiveFormOrThrowAsync(int formId)
+        {
+            var form = await _context.Forms
+                .Include(f => f.FormFields)
+                .FirstOrDefaultAsync(f => f.FormId == formId && f.IsActive);
+
+            return form ?? throw new ArgumentException("النموذج غير موجود أو غير نشط");
+        }
+
+        private void ValidateRequiredFields(Form form, Dictionary<string, string> values)
+        {
+            var missingFields = form.FormFields
+                .Where(f => f.IsRequired && f.IsActive)
+                .Where(f => !values.ContainsKey(f.FieldName) || string.IsNullOrWhiteSpace(values[f.FieldName]))
+                .Select(f => f.Label)
+                .ToList();
+
+            if (missingFields.Any())
+            {
+                throw new ArgumentException($"الحقول التالية مطلوبة: {string.Join(", ", missingFields)}");
+            }
+        }
+
+        private async Task<FormSubmission> CreateSubmissionAsync(int formId, SubmitFormDto submitFormDto)
+        {
+            var submission = new FormSubmission
+            {
+                FormId = formId,
+                SubmittedBy = submitFormDto.SubmittedBy,
+                SubmittedDate = DateTime.UtcNow,
+                Status = FormConstants.SubmissionStatus.UnderReview
+            };
+
+            _context.FormSubmissions.Add(submission);
+            await _context.SaveChangesAsync();
+
+            return submission;
+        }
+
+        private async Task<List<FormSubmissionValue>> CreateSubmissionValuesAsync(
+            int submissionId, Form form, Dictionary<string, string> values)
+        {
+            var submissionValues = values
+                .Select(kvp => form.FormFields.FirstOrDefault(f => f.FieldName == kvp.Key))
+                .Where(field => field != null)
+                .Select(field => new FormSubmissionValue
+                {
+                    SubmissionId = submissionId,
+                    FieldId = field!.FieldId,
+                    FieldValue = values[field.FieldName],
+                    FieldNameAtSubmission = field.FieldName,
+                    FieldTypeAtSubmission = field.FieldType,
+                    LabelAtSubmission = field.Label,
+                    OptionsAtSubmission = field.Options,
+                    CreatedDate = DateTime.UtcNow
+                })
+                .ToList();
+
+            _context.FormSubmissionValues.AddRange(submissionValues);
+            await _context.SaveChangesAsync();
+
+            return submissionValues;
+        }
+
+        private async Task ProcessSubmissionApprovalAsync(FormSubmission submission,
+            List<FormSubmissionValue> submissionValues, ValidationResult validationResult)
+        {
+            var allErrors = new List<string>(validationResult.AllErrors);
+            var allErrorsEn = new List<string>(validationResult.AllErrorsEn);
+
+            try
+            {
+                var approvalResult = await _approvalService.ProcessApprovalAsync(submissionValues);
+
+                if (!approvalResult.IsApproved && !string.IsNullOrEmpty(approvalResult.RejectionReason))
+                {
+                    allErrors.AddRange(
+                        approvalResult.RejectionReason.Split(", ", StringSplitOptions.RemoveEmptyEntries));
+
+                    allErrorsEn.AddRange(
+                        approvalResult.RejectionReasonEn?.Split(", ", StringSplitOptions.RemoveEmptyEntries) ??
+                        Array.Empty<string>());
+                }
+            } catch (Exception ex)
+            {
+                _logger.LogError(ex, "Approval service failed for submission {SubmissionId}", submission.SubmissionId);
+                allErrors.Add("خطأ في نظام المراجعة");
+                allErrorsEn.Add("System review error");
             }
 
-            return new FormDto
+            if (allErrors.Any())
             {
-                FormId = form.FormId,
-                Name = form.Name,
-                Description = form.Description,
-                IsActive = form.IsActive,
-                CreatedDate = form.CreatedDate,
-                Fields = form.FormFields.OrderBy(f => f.DisplayOrder).Select(f => new FormFieldDto
-                {
-                    FieldId = f.FieldId,
-                    FieldName = f.FieldName,
-                    FieldType = f.FieldType,
-                    Label = f.Label,
-                    IsRequired = f.IsRequired,
-                    DisplayOrder = f.DisplayOrder,
-                    Options = !string.IsNullOrEmpty(f.Options) ? JsonSerializer.Deserialize<List<string>>(f.Options) : null
-                }).ToList()
-            };
+                submission.Status = FormConstants.SubmissionStatus.Rejected;
+                submission.RejectionReason = string.Join(", ", allErrors);
+                submission.RejectionReasonEn = string.Join(", ", allErrorsEn);
+
+                _logger.LogWarning("Submission {SubmissionId} rejected: {Errors}", submission.SubmissionId,
+                    string.Join(", ", allErrors));
+            }
+            else
+            {
+                submission.Status = FormConstants.SubmissionStatus.Approved;
+                _logger.LogInformation("Submission {SubmissionId} approved", submission.SubmissionId);
+            }
         }
 
         private async Task<ValidationResult> ValidateSubmissionDataAsync(Dictionary<string, string> values)
@@ -500,7 +576,8 @@ namespace DynamicForm.Services
             if (form != null)
             {
                 // use the validation service for dynamic field validations
-                var dynamicValidationResult = await _fieldValidationService.ValidateDynamicRulesAsync(values, form.FormFields.ToList());
+                var dynamicValidationResult =
+                    await _fieldValidationService.ValidateDynamicRulesAsync(values, form.FormFields.ToList());
 
                 result.AllErrors.AddRange(dynamicValidationResult.AllErrors);
                 result.AllErrorsEn.AddRange(dynamicValidationResult.AllErrorsEn);
@@ -512,8 +589,7 @@ namespace DynamicForm.Services
                 try
                 {
                     _whatsAppService.ValidateAndFormatPhoneNumber(phoneNumber);
-                }
-                catch (ArgumentException ex)
+                } catch (ArgumentException ex)
                 {
                     result.AllErrors.Add($"رقم الجوال غير صحيح: برجاء ادخال الرقم الصحيح مثال (966-5xxxxxxxx)");
                     result.AllErrorsEn.Add($"Invalid phone number: {ex.Message}");
@@ -530,38 +606,6 @@ namespace DynamicForm.Services
                 }
             }
 
-            // Validate birth date and age (all validation errors are now non-critical)
-            //if (values.TryGetValue("birthDate", out var birthDateStr))
-            //{
-            //    if (DateTime.TryParseExact(birthDateStr, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var birthDate))
-            //    {
-            //        var age = CalculateAge(birthDate);
-
-            //        // Age validation - now saved to database
-            //        if (age < 20)
-            //        {
-            //            result.AllErrors.Add($"العمر ({age} سنة) أقل من الحد الأدنى المطلوب (20 سنة)");
-            //            result.AllErrorsEn.Add($"Age ({age} years) is below the minimum required (20 years)");
-            //        }
-
-            //        // Check age consistency if age field exists
-            //        if (values.TryGetValue("age", out var ageStr) && int.TryParse(ageStr, out var providedAge))
-            //        {
-            //            if (Math.Abs(age - providedAge) > 1)
-            //            {
-            //                result.AllErrors.Add($"العمر المدخل ({providedAge} سنة) لا يتطابق مع تاريخ الميلاد (العمر الفعلي: {age} سنة)");
-            //                result.AllErrorsEn.Add($"Provided age ({providedAge} years) does not match birth date (actual age: {age} years)");
-            //            }
-            //        }
-            //    }
-            //    else
-            //    {
-            //        // Birth date format - now saved to database instead of throwing
-            //        result.AllErrors.Add("تاريخ الميلاد غير صحيح. يجب أن يكون بالصيغة: YYYY-MM-DD");
-            //        result.AllErrorsEn.Add("Invalid birth date format. Must be in format: YYYY-MM-DD");
-            //    }
-            //}
-
             // Validate numeric fields (now saved to database instead of throwing)
             if (values.TryGetValue("monthlySalary", out var salaryStr))
             {
@@ -573,8 +617,11 @@ namespace DynamicForm.Services
                 // NEW: Add minimum salary validation
                 else if (salary < 3000)
                 {
-                    result.AllErrors.Add($"عذراً، الراتب الشهري يجب أن يكون 3000 ريال أو أكثر (الراتب المدخل: {salary:N0} ريال)");
-                    result.AllErrorsEn.Add($"Sorry, monthly salary must be 3,000 SAR or more (provided salary: {salary:N0} SAR)");
+                    result.AllErrors.Add(
+                        $"عذراً، الراتب الشهري يجب أن يكون 3000 ريال أو أكثر (الراتب المدخل: {salary:N0} ريال)");
+
+                    result.AllErrorsEn.Add(
+                        $"Sorry, monthly salary must be 3,000 SAR or more (provided salary: {salary:N0} SAR)");
                 }
             }
 
@@ -610,24 +657,13 @@ namespace DynamicForm.Services
             return await Task.FromResult(result);
         }
 
-        private int CalculateAge(DateTime birthDate)
-        {
-            var today = DateTime.Today;
-            var age = today.Year - birthDate.Year;
-
-            if (birthDate.Date > today.AddYears(-age))
-            {
-                age--;
-            }
-
-            return age;
-        }
-
-        private async Task SendApprovalWhatsAppMessageAsync(FormSubmission submission, List<FormSubmissionValue> submissionValues)
+        private async Task SendApprovalWhatsAppMessageAsync(FormSubmission submission,
+            List<FormSubmissionValue> submissionValues)
         {
             try
             {
-                _logger.LogInformation("Attempting to send WhatsApp message for approved submission {SubmissionId}", submission.SubmissionId);
+                _logger.LogInformation("Attempting to send WhatsApp message for approved submission {SubmissionId}",
+                    submission.SubmissionId);
 
                 // Get submission data
                 var phoneValue = submissionValues.FirstOrDefault(v =>
@@ -657,7 +693,8 @@ namespace DynamicForm.Services
 
                 if (!subscriberCreated)
                 {
-                    _logger.LogWarning("Failed to create subscriber for {Phone}, but continuing with template send", phoneNumber);
+                    _logger.LogWarning("Failed to create subscriber for {Phone}, but continuing with template send",
+                        phoneNumber);
                 }
 
                 //// Add small delay between API calls
@@ -693,7 +730,8 @@ namespace DynamicForm.Services
                     ["BODY_5"] = birthDateValue?.FieldValue ?? "غير محدد", // تاريخ الميلاد: {{5}}
                     ["BODY_6"] = salaryValue?.FieldValue ?? "غير محدد", // الراتب: {{6}}
                     ["BODY_7"] = commitmentsValue?.FieldValue ?? "غير محدد", // الالتزامات: {{7}}
-                    ["BODY_8"] = serviceDurationValue?.FieldValue ?? "جديد" // مدة الخدمة: {{8}} - default for new customers
+                    ["BODY_8"] =
+                        serviceDurationValue?.FieldValue ?? "جديد" // مدة الخدمة: {{8}} - default for new customers
                 };
 
                 // Send WhatsApp template message
@@ -701,22 +739,24 @@ namespace DynamicForm.Services
 
                 if (messageSent)
                 {
-                    _logger.LogInformation("WhatsApp approval message sent successfully for submission {SubmissionId} to {Phone}",
+                    _logger.LogInformation(
+                        "WhatsApp approval message sent successfully for submission {SubmissionId} to {Phone}",
                         submission.SubmissionId, phoneNumber);
                 }
                 else
                 {
-                    _logger.LogError("Failed to send WhatsApp approval message for submission {SubmissionId} to {Phone}",
+                    _logger.LogError(
+                        "Failed to send WhatsApp approval message for submission {SubmissionId} to {Phone}",
                         submission.SubmissionId, phoneNumber);
                 }
-            }
-            catch (OperationCanceledException)
+            } catch (OperationCanceledException)
             {
-                _logger.LogError("WhatsApp message sending timed out for submission {SubmissionId}", submission.SubmissionId);
-            }
-            catch (Exception ex)
+                _logger.LogError("WhatsApp message sending timed out for submission {SubmissionId}",
+                    submission.SubmissionId);
+            } catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sending WhatsApp approval message for submission {SubmissionId}", submission.SubmissionId);
+                _logger.LogError(ex, "Error sending WhatsApp approval message for submission {SubmissionId}",
+                    submission.SubmissionId);
             }
         }
 
@@ -824,6 +864,41 @@ namespace DynamicForm.Services
             };
 
             return mandatoryFields;
+        }
+
+        private FormDto MapToFormDto(Form form)
+        {
+            return new FormDto
+            {
+                FormId = form.FormId,
+                Name = form.Name,
+                Description = form.Description,
+                IsActive = form.IsActive,
+                CreatedDate = form.CreatedDate,
+                Fields = form.FormFields
+                    .OrderBy(f => f.DisplayOrder)
+                    .Select(MapToFormFieldDto)
+                    .ToList()
+            };
+        }
+
+        private FormFieldDto MapToFormFieldDto(FormField field)
+        {
+            return new FormFieldDto
+            {
+                FieldId = field.FieldId,
+                FieldName = field.FieldName,
+                FieldType = field.FieldType,
+                Label = field.Label,
+                IsRequired = field.IsRequired,
+                DisplayOrder = field.DisplayOrder,
+                Options = !string.IsNullOrEmpty(field.Options)
+                    ? JsonSerializer.Deserialize<List<string>>(field.Options)
+                    : null,
+                ValidationRules = !string.IsNullOrEmpty(field.ValidationRules)
+                    ? JsonSerializer.Deserialize<ValidationRuleDto>(field.ValidationRules)
+                    : null
+            };
         }
     }
 }

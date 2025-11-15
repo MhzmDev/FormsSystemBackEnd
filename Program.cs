@@ -14,6 +14,8 @@ builder.Services.AddControllers();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Add Cache Service 
+builder.Services.AddMemoryCache();
 // Add HttpClient for WhatsApp service
 builder.Services.AddHttpClient<WhatsAppService>();
 
@@ -23,6 +25,7 @@ builder.Services.AddScoped<ISubmissionService, SubmissionService>();
 builder.Services.AddScoped<IApprovalService, ApprovalService>();
 builder.Services.AddScoped<IWhatsAppService, WhatsAppService>();
 builder.Services.AddScoped<IFieldValidationService, FieldValidationService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -102,8 +105,7 @@ using (var scope = app.Services.CreateScope())
 
         var formCount = await context.Forms.CountAsync();
         logger.LogInformation($"Database contains {formCount} forms after migration.");
-    }
-    catch (Exception ex)
+    } catch (Exception ex)
     {
         logger.LogError(ex, "An error occurred while migrating the database.");
 

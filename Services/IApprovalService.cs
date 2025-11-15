@@ -1,5 +1,5 @@
-﻿using DynamicForm.Models;
-using DynamicForm.Models.DTOs;
+﻿using DynamicForm.Models.DTOs;
+using DynamicForm.Models.Entities;
 
 namespace DynamicForm.Services
 {
