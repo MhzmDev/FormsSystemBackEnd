@@ -57,6 +57,22 @@ namespace DynamicForm.Filters
                                 new OpenApiString("مدير مشروع")
                             },
                             ["displayOrder"] = new OpenApiInteger(4)
+                        },
+                        new OpenApiObject
+                        {
+                            ["fieldName"] = new OpenApiString("monthlySalary"),
+                            ["fieldType"] = new OpenApiString("number"),
+                            ["label"] = new OpenApiString("الراتب الشهري"),
+                            ["isRequired"] = new OpenApiBoolean(true),
+                            ["displayOrder"] = new OpenApiInteger(5),
+                            ["validationRules"] = new OpenApiObject
+                            {
+                                ["operator"] = new OpenApiString(">="),
+                                ["validValue"] = new OpenApiString("3000"),
+                                ["isValid"] = new OpenApiBoolean(true),
+                                ["errorMessageAr"] = new OpenApiString("الراتب يجب أن يكون 3000 ريال أو أكثر"),
+                                ["errorMessageEn"] = new OpenApiString("Salary must be 3000 SAR or more")
+                            }
                         }
                     }
                 };

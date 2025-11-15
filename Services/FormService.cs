@@ -2,7 +2,6 @@
 using DynamicForm.Data;
 using DynamicForm.Models;
 using DynamicForm.Models.DTOs;
-using DynamicForm.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Client;
 using System.Text.Json;
@@ -15,17 +14,19 @@ namespace DynamicForm.Services
     {
         private readonly IApprovalService _approvalService;
         private readonly ApplicationDbContext _context;
+        private readonly IFieldValidationService _fieldValidationService;
         private readonly ILogger<FormService> _logger;
         private readonly ISubmissionService _submissionService;
         private readonly IWhatsAppService _whatsAppService;
 
-        public FormService(ApplicationDbContext context, IApprovalService approvalService, IWhatsAppService whatsAppService, ILogger<FormService> logger, ISubmissionService submissionService)
+        public FormService(ApplicationDbContext context, IApprovalService approvalService, IWhatsAppService whatsAppService, ILogger<FormService> logger, ISubmissionService submissionService, IFieldValidationService fieldValidationService)
         {
             _context = context;
             _approvalService = approvalService;
             _whatsAppService = whatsAppService;
             _logger = logger;
             _submissionService = submissionService;
+            _fieldValidationService = fieldValidationService;
         }
 
         public async Task<FormDto?> GetFormByIdAsync(int formId)
@@ -54,7 +55,10 @@ namespace DynamicForm.Services
                     Label = f.Label,
                     IsRequired = f.IsRequired,
                     DisplayOrder = f.DisplayOrder,
-                    Options = !string.IsNullOrEmpty(f.Options) ? JsonSerializer.Deserialize<List<string>>(f.Options) : null
+                    Options = !string.IsNullOrEmpty(f.Options) ? JsonSerializer.Deserialize<List<string>>(f.Options) : null,
+                    ValidationRules = !string.IsNullOrEmpty(f.ValidationRules)
+                        ? JsonSerializer.Deserialize<ValidationRuleDto>(f.ValidationRules)
+                        : null
                 }).ToList()
             };
         }
@@ -102,7 +106,10 @@ namespace DynamicForm.Services
                     Label = f.Label,
                     IsRequired = f.IsRequired,
                     DisplayOrder = f.DisplayOrder,
-                    Options = !string.IsNullOrEmpty(f.Options) ? JsonSerializer.Deserialize<List<string>>(f.Options) : null
+                    Options = !string.IsNullOrEmpty(f.Options) ? JsonSerializer.Deserialize<List<string>>(f.Options) : null,
+                    ValidationRules = !string.IsNullOrEmpty(f.ValidationRules)
+                        ? JsonSerializer.Deserialize<ValidationRuleDto>(f.ValidationRules)
+                        : null
                 }).ToList()
             });
 
@@ -164,7 +171,8 @@ namespace DynamicForm.Services
                         IsRequired = fieldDto.IsRequired,
                         DisplayOrder = maxDisplayOrder++,
                         Options = fieldDto.Options != null ? JsonSerializer.Serialize(fieldDto.Options) : null,
-                        IsActive = true
+                        IsActive = true,
+                        ValidationRules = fieldDto.ValidationRules != null ? JsonSerializer.Serialize(fieldDto.ValidationRules) : null
                     };
 
                     _context.FormFields.Add(field);
@@ -216,6 +224,7 @@ namespace DynamicForm.Services
                         existingField.DisplayOrder = updatedField.DisplayOrder;
                         existingField.Options = updatedField.Options != null ? JsonSerializer.Serialize(updatedField.Options) : null;
                         existingField.IsActive = true;
+                        existingField.ValidationRules = updatedField.ValidationRules != null ? JsonSerializer.Serialize(updatedField.ValidationRules) : null;
                     }
                     else
                     {
@@ -483,6 +492,19 @@ namespace DynamicForm.Services
         private async Task<ValidationResult> ValidateSubmissionDataAsync(Dictionary<string, string> values)
         {
             var result = new ValidationResult();
+
+            var form = await _context.Forms
+                .Include(f => f.FormFields.Where(ff => ff.IsActive))
+                .FirstOrDefaultAsync(f => f.IsActive);
+
+            if (form != null)
+            {
+                // use the validation service for dynamic field validations
+                var dynamicValidationResult = await _fieldValidationService.ValidateDynamicRulesAsync(values, form.FormFields.ToList());
+
+                result.AllErrors.AddRange(dynamicValidationResult.AllErrors);
+                result.AllErrorsEn.AddRange(dynamicValidationResult.AllErrorsEn);
+            }
 
             // Validate phone number format (now non-critical - saved to database)
             if (values.TryGetValue("phoneNumber", out var phoneNumber))
@@ -803,12 +825,5 @@ namespace DynamicForm.Services
 
             return mandatoryFields;
         }
-    }
-
-    public class ValidationResult
-    {
-        public List<string> AllErrors { get; set; } = new List<string>();
-        public List<string> AllErrorsEn { get; set; } = new List<string>();
-        public bool HasErrors => AllErrors.Any();
     }
 }

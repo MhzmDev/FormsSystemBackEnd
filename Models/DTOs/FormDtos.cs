@@ -15,6 +15,7 @@ namespace DynamicForm.Models.DTOs
         public bool IsRequired { get; set; }
         public List<string>? Options { get; set; }
         public int DisplayOrder { get; set; }
+        public ValidationRuleDto? ValidationRules { get; set; } // ADD THIS LINE
     }
 
     public class FormDto
@@ -36,6 +37,7 @@ namespace DynamicForm.Models.DTOs
         public bool IsRequired { get; set; }
         public List<string>? Options { get; set; }
         public int DisplayOrder { get; set; }
+        public ValidationRuleDto? ValidationRules { get; set; } // ADD THIS LINE
     }
 
     public class FormSubmissionDto
@@ -64,5 +66,14 @@ namespace DynamicForm.Models.DTOs
         public string Label { get; set; } = string.Empty;
         public string Value { get; set; } = string.Empty;
         public string FieldType { get; set; } = string.Empty;
+    }
+
+    public class ValidationRuleDto
+    {
+        public string? Operator { get; set; } // For numbers/text: =, >, <, <=, >=, !=
+        public string? ValidValue { get; set; } // The valid option/value
+        public bool IsValid { get; set; } = true; // For dropdown/checkbox: true=valid, false=invalid
+        public string? ErrorMessageAr { get; set; } // Custom Arabic error message
+        public string? ErrorMessageEn { get; set; } // Custom English error message
     }
 }
