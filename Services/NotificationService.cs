@@ -25,13 +25,36 @@ public class NotificationService : INotificationService
                 return;
             }
 
-            var templateParams = BuildTemplateParameters(submission, values);
+            //var templateParams = BuildTemplateParameters(submission, values);
+            var templateParams = new List<string>
+            {
+                submission.SubmissionId.ToString(), // Param 1
+                values.FirstOrDefault(v => v.FieldNameAtSubmission == "fullName")?.FieldValue ?? "غير محدد", // Param 2
+                phoneValue, // Param 3
+                values.FirstOrDefault(v => v.FieldNameAtSubmission == "nationalId")?.FieldValue ?? "غير محدد", // Param 4
+                values.FirstOrDefault(v => v.FieldNameAtSubmission == "birthDate")?.FieldValue ?? "غير محدد", // Param 5
+                values.FirstOrDefault(v => v.FieldNameAtSubmission == "monthlySalary")?.FieldValue ?? "غير محدد", // Param 6
+                values.FirstOrDefault(v => v.FieldNameAtSubmission == "monthlyCommitments")?.FieldValue ?? "غير محدد", // Param 7
+                values.FirstOrDefault(v => v.FieldNameAtSubmission == "ServiceDuration")?.FieldValue ?? "جديد" // Param 8
+            };
+
             var fullName = ExtractFieldValue(values, "name", "fullname", "اسم") ?? "عميل محزم";
 
             await _whatsAppService.CreateSubscriberAsync(phoneValue, fullName);
-            await _whatsAppService.SendApprovalMessageAsync(phoneValue, templateParams);
 
-            _logger.LogInformation("Notification sent for submission {SubmissionId}", submission.SubmissionId);
+            //await _whatsAppService.SendApprovalMessageAsync(phoneValue, templateParams);
+            var messageSent = await _whatsAppService.SendTemplateMessageAsync(phoneValue, templateParams);
+
+            if (messageSent)
+            {
+                _logger.LogInformation("WhatsApp approval notification sent successfully for submission {SubmissionId} to {Phone}",
+                    submission.SubmissionId, phoneValue);
+            }
+            else
+            {
+                _logger.LogError("Failed to send WhatsApp approval notification for submission {SubmissionId} to {Phone}",
+                    submission.SubmissionId, phoneValue);
+            }
         } catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send notification for submission {SubmissionId}", submission.SubmissionId);

@@ -6,7 +6,8 @@
       "launchUrl": "swagger",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "MORASALATY_API_TOKEN": "VBvM6e28woshlSMmTcCrQVUX93zrTng2eCK3SCwCtz5pg9FOZa66NAC8A1nW"
+        "MORASALATY_API_TOKEN": "VBvM6e28woshlSMmTcCrQVUX93zrTng2eCK3SCwCtz5pg9FOZa66NAC8A1nW",
+        "MORASALATY_WHATSAPP_TOKEN": "608878E6E9434BE6B64B8E1205F4F912"
       },
       "dotnetRunMessages": true,
       "applicationUrl": "http://localhost:5253"

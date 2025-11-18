@@ -12,6 +12,8 @@ namespace DynamicForm.Services
         private readonly HttpClient _httpClient;
         private readonly bool _isConfigured;
         private readonly ILogger<WhatsAppService> _logger;
+        private readonly string _whatsAppBaseUrl = "https://whatsapp.morasalaty.net/rest";
+        private readonly string? _whatsAppToken;
 
         public WhatsAppService(HttpClient httpClient, ILogger<WhatsAppService> logger, IConfiguration configuration)
         {
@@ -21,10 +23,14 @@ namespace DynamicForm.Services
             // Configure HttpClient timeout and settings
             _httpClient.Timeout = TimeSpan.FromSeconds(30);
 
-            // Try multiple configuration sources
+            // Try multiple configuration sources for old API
             _apiToken = configuration["MORASALATY_API_TOKEN"] ??
                         Environment.GetEnvironmentVariable("MORASALATY_API_TOKEN") ??
                         configuration.GetConnectionString("MORASALATY_API_TOKEN");
+
+            // NEW: Configuration for WhatsApp REST API
+            _whatsAppToken = configuration["MORASALATY_WHATSAPP_TOKEN"] ??
+                             Environment.GetEnvironmentVariable("MORASALATY_WHATSAPP_TOKEN");
 
             _isConfigured = !string.IsNullOrEmpty(_apiToken);
 
@@ -144,20 +150,17 @@ namespace DynamicForm.Services
 
                     return false;
                 }
-            }
-            catch (OperationCanceledException)
+            } catch (OperationCanceledException)
             {
                 _logger.LogError("Timeout while creating subscriber for {Phone}", phoneNumber);
 
                 return false;
-            }
-            catch (ObjectDisposedException)
+            } catch (ObjectDisposedException)
             {
                 _logger.LogError("HttpClient disposed while creating subscriber for {Phone}", phoneNumber);
 
                 return false;
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating subscriber for {Phone}", phoneNumber);
 
@@ -228,22 +231,94 @@ namespace DynamicForm.Services
 
                     return false;
                 }
-            }
-            catch (OperationCanceledException)
+            } catch (OperationCanceledException)
             {
                 _logger.LogError("Timeout while sending WhatsApp message to {Phone}", phoneNumber);
 
                 return false;
-            }
-            catch (ObjectDisposedException)
+            } catch (ObjectDisposedException)
             {
                 _logger.LogError("HttpClient disposed while sending WhatsApp message to {Phone}", phoneNumber);
 
                 return false;
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending WhatsApp message to {Phone}", phoneNumber);
+
+                return false;
+            }
+        }
+
+        public async Task<bool> SendTemplateMessageAsync(string phoneNumber, List<string> parameters)
+        {
+            try
+            {
+                var formattedPhone = ValidateAndFormatPhoneNumber(phoneNumber);
+
+                // Ensure we have exactly 8 parameters as required by the template
+                var templateParams = new List<string>(parameters);
+                while (templateParams.Count < 8) templateParams.Add(""); // Add empty strings if parameters are missing
+
+                if (templateParams.Count > 8)
+                {
+                    templateParams = templateParams.Take(8).ToList(); // Trim to 8 parameters
+                }
+
+                var requestBody = new
+                {
+                    Token = _whatsAppToken,
+                    Mobile = formattedPhone,
+                    TemplateId = "0a953059-e7de-4cd8-a4e4-7d12dba9f14e",
+                    HeaderUrl = "",
+                    ParamsType = "8",
+                    Params = templateParams,
+                    Schedule = "", // Empty for immediate sending
+                    ObjectId = "",
+                    OrderId = "",
+                    Param1 = ""
+                };
+
+                var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = null // Keep property names as-is
+                });
+
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                _logger.LogInformation("Sending WhatsApp template to {Phone} via REST API with {ParamCount} parameters",
+                    formattedPhone, templateParams.Count);
+
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                var response = await _httpClient.PostAsync($"{_whatsAppBaseUrl}/sendtemplate", content, cts.Token);
+                var responseContent = await response.Content.ReadAsStringAsync();
+
+                if (response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("WhatsApp template message sent successfully to {Phone}. Response: {Response}",
+                        formattedPhone, responseContent);
+
+                    return true;
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to send WhatsApp template to {Phone}. Status: {Status}, Response: {Response}",
+                        formattedPhone, response.StatusCode, responseContent);
+
+                    return false;
+                }
+            } catch (OperationCanceledException)
+            {
+                _logger.LogError("Timeout while sending WhatsApp template to {Phone}", phoneNumber);
+
+                return false;
+            } catch (ObjectDisposedException)
+            {
+                _logger.LogError("HttpClient disposed while sending WhatsApp template to {Phone}", phoneNumber);
+
+                return false;
+            } catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending WhatsApp template to {Phone}", phoneNumber);
 
                 return false;
             }
