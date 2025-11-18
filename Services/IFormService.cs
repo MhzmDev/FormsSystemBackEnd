@@ -12,5 +12,6 @@ namespace DynamicForm.Services
         Task<FormDto?> ActivateFormAsync(int formId);
         Task<bool> DeleteFormAsync(int formId);
         Task<FormSubmissionResponseDto> SubmitFormAsync(int formId, SubmitFormDto submitFormDto);
+        Task<FormSubmissionResponseDto> SubmitFormTestAsync(int formId, SubmitFormDto submitFormDto);
     }
 }

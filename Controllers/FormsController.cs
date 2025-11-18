@@ -48,8 +48,7 @@ namespace DynamicForm.Controllers
                     Message = "تم جلب النموذج النشط بنجاح",
                     Data = form
                 });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<FormDto>
                 {
@@ -68,7 +67,8 @@ namespace DynamicForm.Controllers
         [HttpGet]
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<FormDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<ApiResponse<PagedResult<FormDto>>>> GetAllForms([FromQuery] bool? isActive = null, [FromQuery] int pageIndex = 1, [FromQuery] int pageSize = 10)
+        public async Task<ActionResult<ApiResponse<PagedResult<FormDto>>>> GetAllForms([FromQuery] bool? isActive = null,
+            [FromQuery] int pageIndex = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
@@ -102,8 +102,7 @@ namespace DynamicForm.Controllers
                     Message = message,
                     Data = forms
                 });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<object>
                 {
@@ -146,8 +145,7 @@ namespace DynamicForm.Controllers
                     Message = "تم جلب النموذج بنجاح",
                     Data = form
                 });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<object>
                 {
@@ -159,7 +157,7 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        ///     Create a New Form 
+        ///     Create a New Form
         /// </summary>
         /// <param name="id">Form ID - معرف النموذج</param>
         /// <param name="createFormDto">Form submission data - بيانات إرسال النموذج</param>
@@ -194,8 +192,7 @@ namespace DynamicForm.Controllers
                         Message = "تم إنشاء النموذج بنجاح",
                         Data = form
                     });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<object>
                 {
@@ -241,8 +238,7 @@ namespace DynamicForm.Controllers
                     Message = "تم تحديث النموذج بنجاح",
                     Data = form
                 });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<object>
                 {
@@ -282,8 +278,7 @@ namespace DynamicForm.Controllers
                     Message = "تم تفعيل النموذج بنجاح",
                     Data = form
                 });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<FormDto>
                 {
@@ -321,8 +316,7 @@ namespace DynamicForm.Controllers
                     Success = true,
                     Message = "تم حذف النموذج بنجاح"
                 });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<object>
                 {
@@ -355,16 +349,54 @@ namespace DynamicForm.Controllers
                         Message = "تم إرسال البيانات بنجاح",
                         Data = submission
                     });
-            }
-            catch (ArgumentException ex)
+            } catch (ArgumentException ex)
             {
                 return BadRequest(new ApiResponse<object>
                 {
                     Success = false,
                     Message = ex.Message
                 });
+            } catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "حدث خطأ في النظام",
+                    Error = ex.Message
+                });
             }
-            catch (Exception ex)
+        }
+
+        /// <summary>
+        ///     Submit form data
+        /// </summary>
+        /// <param name="id">Form Id</param>
+        /// <param name="submitFormDto">Form submission data</param>
+        [HttpPost("{id}/submitTest")]
+        [ProducesResponseType(typeof(ApiResponse<FormSubmissionResponseDto>), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<FormSubmissionResponseDto>> SubmitFormTest(int id, [FromBody] SubmitFormDto submitFormDto)
+        {
+            try
+            {
+                var submission = await _formService.SubmitFormTestAsync(id, submitFormDto);
+
+                return CreatedAtRoute("GetSubmissionById", new { id = submission.SubmissionId },
+                    new ApiResponse<FormSubmissionResponseDto>
+                    {
+                        Success = true,
+                        Message = "تم إرسال البيانات بنجاح",
+                        Data = submission
+                    });
+            } catch (ArgumentException ex)
+            {
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = ex.Message
+                });
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<object>
                 {

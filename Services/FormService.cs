@@ -245,7 +245,7 @@ namespace DynamicForm.Services
                     if (updatedField != null)
                     {
                         // ✅ Protect mandatory fields from destructive changes
-                         if (mandatoryFieldNames.Contains(existingField.FieldName))
+                        if (mandatoryFieldNames.Contains(existingField.FieldName))
                         {
                             // Only allow label updates for mandatory fields
                             existingField.Label = updatedField.Label;
@@ -286,7 +286,9 @@ namespace DynamicForm.Services
                         }
 
                         existingField.IsActive = true;
-                        existingField.ValidationRules = updatedField.ValidationRules != null ? JsonSerializer.Serialize(updatedField.ValidationRules) : null;
+
+                        existingField.ValidationRules =
+                            updatedField.ValidationRules != null ? JsonSerializer.Serialize(updatedField.ValidationRules) : null;
                     }
                     else
                     {
@@ -389,6 +391,12 @@ namespace DynamicForm.Services
             var form = await GetActiveFormOrThrowAsync(formId);
             ValidateRequiredFields(form, submitFormDto.Values);
 
+            // Check 24-hours submission throttle by phone number
+            if (submitFormDto.Values.TryGetValue("phoneNumber", out var phoneNumber))
+            {
+                await CheckSubmissionThrottleAsync(phoneNumber, formId);
+            }
+
             var validationResult = await ValidateSubmissionDataAsync(submitFormDto.Values);
 
             var submission = await CreateSubmissionAsync(formId, submitFormDto);
@@ -397,6 +405,12 @@ namespace DynamicForm.Services
 
             await ProcessSubmissionApprovalAsync(submission, submissionValues, validationResult);
             await _context.SaveChangesAsync();
+
+            // Update throttle cache after successful submission
+            if (submitFormDto.Values.TryGetValue("phoneNumber", out var phone))
+            {
+                UpdateSubmissionThrottleCache(phone, formId);
+            }
 
             if (submission.Status == FormConstants.SubmissionStatus.Approved)
             {
@@ -457,6 +471,29 @@ namespace DynamicForm.Services
 
                 return form == null ? null : MapToFormDto(form);
             });
+        }
+
+        public async Task<FormSubmissionResponseDto> SubmitFormTestAsync(int formId, SubmitFormDto submitFormDto)
+        {
+            var form = await GetActiveFormOrThrowAsync(formId);
+            ValidateRequiredFields(form, submitFormDto.Values);
+
+            var validationResult = await ValidateSubmissionDataAsync(submitFormDto.Values);
+
+            var submission = await CreateSubmissionAsync(formId, submitFormDto);
+
+            var submissionValues = await CreateSubmissionValuesAsync(submission.SubmissionId, form, submitFormDto.Values);
+
+            await ProcessSubmissionApprovalAsync(submission, submissionValues, validationResult);
+            await _context.SaveChangesAsync();
+
+            if (submission.Status == FormConstants.SubmissionStatus.Approved)
+            {
+                await _notificationService.SendApprovalNotificationAsync(submission, submissionValues);
+            }
+
+            return await _submissionService.GetSubmissionByIdAsync(submission.SubmissionId)
+                   ?? throw new InvalidOperationException("فشل في حفظ البيانات");
         }
 
         private async Task<Form> GetActiveFormOrThrowAsync(int formId)
@@ -899,6 +936,87 @@ namespace DynamicForm.Services
                     ? JsonSerializer.Deserialize<ValidationRuleDto>(field.ValidationRules)
                     : null
             };
+        }
+
+        // ✅ NEW: Hybrid throttle check (cache + database)
+        private async Task CheckSubmissionThrottleAsync(string phoneNumber, int formId)
+        {
+            // TODO: Add admin bypass check here if needed
+            // if (currentUser.IsAdmin) return;
+
+            var cacheKey = $"submission_throttle_{phoneNumber}_{formId}";
+
+            // Fast path: Check memory cache first
+            if (_cache.TryGetValue<DateTime>(cacheKey, out var lastSubmissionFromCache))
+            {
+                var timeRemaining = TimeSpan.FromHours(24) - (DateTime.UtcNow - lastSubmissionFromCache);
+
+                if (timeRemaining > TimeSpan.Zero)
+                {
+                    var hours = (int)timeRemaining.TotalHours;
+                    var minutes = timeRemaining.Minutes;
+
+                    _logger.LogWarning(
+                        "Submission throttled for phone {Phone} on form {FormId}. Last submission: {LastSubmission}",
+                        phoneNumber, formId, lastSubmissionFromCache);
+
+                    throw new InvalidOperationException(
+                        $"عذراً، يمكنك تقديم طلب واحد فقط كل 24 ساعة. " +
+                        $"يمكنك تقديم طلب جديد بعد {hours} ساعة و {minutes} دقيقة. " +
+                        $"آخر طلب كان في {lastSubmissionFromCache:yyyy-MM-dd HH:mm}");
+                }
+            }
+
+            // Slow path: Check database if not in cache
+            var lastSubmission = await _context.FormSubmissions
+                .Join(
+                    _context.FormSubmissionValues,
+                    s => s.SubmissionId,
+                    v => v.SubmissionId,
+                    (s, v) => new { Submission = s, Value = v }
+                )
+                .Where(x =>
+                    x.Submission.FormId == formId &&
+                    x.Value.FieldNameAtSubmission == "phoneNumber" &&
+                    x.Value.FieldValue == phoneNumber)
+                .OrderByDescending(x => x.Submission.SubmittedDate)
+                .Select(x => x.Submission.SubmittedDate)
+                .FirstOrDefaultAsync();
+
+            if (lastSubmission != default)
+            {
+                var timeSinceLastSubmission = DateTime.UtcNow - lastSubmission;
+
+                if (timeSinceLastSubmission < TimeSpan.FromHours(24))
+                {
+                    var timeRemaining = TimeSpan.FromHours(24) - timeSinceLastSubmission;
+                    var hours = (int)timeRemaining.TotalHours;
+                    var minutes = timeRemaining.Minutes;
+
+                    // Add to cache for future fast lookups
+                    _cache.Set(cacheKey, lastSubmission, TimeSpan.FromHours(24));
+
+                    _logger.LogWarning(
+                        "Submission throttled for phone {Phone} on form {FormId}. Last submission: {LastSubmission}",
+                        phoneNumber, formId, lastSubmission);
+
+                    throw new InvalidOperationException(
+                        $"عذراً، يمكنك تقديم طلب واحد فقط كل 24 ساعة. " +
+                        $"يمكنك تقديم طلب جديد بعد {hours} ساعة و {minutes} دقيقة. " +
+                        $"آخر طلب كان في {lastSubmission:yyyy-MM-dd HH:mm}");
+                }
+            }
+        }
+
+        // ✅ NEW: Update cache after successful submission
+        private void UpdateSubmissionThrottleCache(string phoneNumber, int formId)
+        {
+            var cacheKey = $"submission_throttle_{phoneNumber}_{formId}";
+            _cache.Set(cacheKey, DateTime.UtcNow, TimeSpan.FromHours(24));
+
+            _logger.LogInformation(
+                "Updated submission throttle cache for phone {Phone} on form {FormId}",
+                phoneNumber, formId);
         }
     }
 }
