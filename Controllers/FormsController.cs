@@ -2,6 +2,8 @@
 using DynamicForm.Models.DTOs;
 using DynamicForm.Services;
 using Swashbuckle.AspNetCore.Annotations;
+using Microsoft.AspNetCore.Authorization;
+using DynamicForm.Models.Entities;
 
 namespace DynamicForm.Controllers
 {
@@ -9,6 +11,7 @@ namespace DynamicForm.Controllers
     [Route("api/[controller]")]
     [Produces("application/json")]
     [Tags("Forms Management")]
+    [Authorize] // ✅ Require authentication for all endpoints
     public class FormsController : ControllerBase
     {
         private readonly IFormService _formService;
@@ -23,6 +26,7 @@ namespace DynamicForm.Controllers
         /// </summary>
         /// <returns></returns>
         [HttpGet("ActiveForm")]
+        [AllowAnonymous] // ✅ Allow public access to active form
         [ProducesDefaultResponseType(typeof(ApiResponse<PagedResult<FormDto>>))]
         [ProducesResponseType(typeof(ApiResponse<FormDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
@@ -333,6 +337,7 @@ namespace DynamicForm.Controllers
         /// <param name="id">Form Id</param>
         /// <param name="submitFormDto">Form submission data</param>
         [HttpPost("{id}/submit")]
+        [AllowAnonymous] // ✅ Allow public form submission
         [ProducesResponseType(typeof(ApiResponse<FormSubmissionResponseDto>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
@@ -368,11 +373,12 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        ///     Submit form data
+        ///     Submit form data (Test endpoint without throttling)
         /// </summary>
         /// <param name="id">Form Id</param>
         /// <param name="submitFormDto">Form submission data</param>
         [HttpPost("{id}/submitTest")]
+        [Authorize(Roles = UserRoles.SuperAdmin)] // ✅ Allow public test submission
         [ProducesResponseType(typeof(ApiResponse<FormSubmissionResponseDto>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]

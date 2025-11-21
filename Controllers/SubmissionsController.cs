@@ -2,12 +2,14 @@
 using DynamicForm.Services;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using Microsoft.AspNetCore.Authorization;
 
 namespace DynamicForm.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
     [Produces("application/json")]
+    [Authorize] // ✅ Require authentication for all submission endpoints
     public class SubmissionsController : ControllerBase
     {
         private readonly ISubmissionService _submissionService;

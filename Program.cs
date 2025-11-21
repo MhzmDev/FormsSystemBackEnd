@@ -4,6 +4,11 @@ using DynamicForm.Services;
 using Microsoft.OpenApi.Models;
 using System.Reflection;
 using DynamicForm.Filters;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using DynamicForm.Middleware;
+using Microsoft.AspNetCore.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,8 +21,39 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 // Add Cache Service 
 builder.Services.AddMemoryCache();
+
 // Add HttpClient for WhatsApp service
 builder.Services.AddHttpClient<WhatsAppService>();
+
+// Add Authentication Services with Custom Events
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured"))),
+        ClockSkew = TimeSpan.Zero
+    };
+
+    // Add custom authentication events
+    options.Events = new JwtAuthenticationEvents();
+});
+
+// Add custom authorization handler
+builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, CustomAuthorizationMiddlewareResultHandler>();
+
+builder.Services.AddAuthorization();
 
 // Add services
 builder.Services.AddScoped<IFormService, FormService>();
@@ -26,6 +62,8 @@ builder.Services.AddScoped<IApprovalService, ApprovalService>();
 builder.Services.AddScoped<IWhatsAppService, WhatsAppService>();
 builder.Services.AddScoped<IFieldValidationService, FieldValidationService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -36,7 +74,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Dynamic Forms API",
         Version = "v1",
-        Description = @"Dynamic Form API with WhatsApp Integration via Morasalaty",
+        Description = @"Dynamic Form API with WhatsApp Integration via Morasalaty and JWT Authentication",
         Contact = new OpenApiContact
         {
             Name = "API Support",
@@ -65,14 +103,30 @@ builder.Services.AddSwaggerGen(c =>
     c.TagActionsBy(api => new[] { api.GroupName ?? api.ActionDescriptor.RouteValues["controller"] });
     c.DocInclusionPredicate((name, api) => true);
 
-    // Add security definition (for future JWT implementation)
+    // Add JWT Bearer security definition
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.Http,
-        Scheme = "bearer"
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
     });
 });
 
@@ -105,14 +159,14 @@ using (var scope = app.Services.CreateScope())
 
         var formCount = await context.Forms.CountAsync();
         logger.LogInformation($"Database contains {formCount} forms after migration.");
-    } catch (Exception ex)
+    }
+    catch (Exception ex)
     {
         logger.LogError(ex, "An error occurred while migrating the database.");
 
         if (app.Environment.IsProduction())
         {
             logger.LogCritical("Application startup failed due to database migration error in production environment.");
-
             throw;
         }
         else
@@ -132,12 +186,13 @@ app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Dynamic Forms API v1");
     c.DocumentTitle = "Dynamic Forms API";
-    c.RoutePrefix = "swagger"; // Available at /swagger
-    c.InjectStylesheet("/swagger-ui/custom.css"); // Use your custom CSS
+    c.RoutePrefix = "swagger";
+    c.InjectStylesheet("/swagger-ui/custom.css");
 });
 
 app.UseCors();
 app.UseHttpsRedirection();
+app.UseAuthentication(); // Added
 app.UseAuthorization();
 app.MapControllers();
 
