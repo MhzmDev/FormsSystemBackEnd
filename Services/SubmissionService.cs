@@ -60,6 +60,12 @@ namespace DynamicForm.Services
             var totalCount = await query.CountAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
+            // Calculate today's submissions count
+            var today = DateTime.UtcNow.Date;
+            var todaySubmissionsCount = await _context.FormSubmissions
+                .Where(s => s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
+                .CountAsync();
+
             // Apply pagination
             var submissions = await query
                 .OrderByDescending(s => s.SubmittedDate)
@@ -86,6 +92,7 @@ namespace DynamicForm.Services
             return new PagedResult<FormSubmissionSummaryDto>
             {
                 TotalCount = totalCount,
+                TodaySubmissionsCount = todaySubmissionsCount,
                 Items = summaryItems,
                 Page = page,
                 PageSize = pageSize,
@@ -129,6 +136,12 @@ namespace DynamicForm.Services
             var totalCount = await query.CountAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
+            // Calculate today's submissions count for this specific form
+            var today = DateTime.UtcNow.Date;
+            var todaySubmissionsCount = await _context.FormSubmissions
+                .Where(s => s.FormId == formId && s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
+                .CountAsync();
+
             // Apply pagination
             var submissions = await query
                 .OrderByDescending(s => s.SubmittedDate)
@@ -156,6 +169,7 @@ namespace DynamicForm.Services
             {
                 Items = summaryItems,
                 TotalCount = totalCount,
+                TodaySubmissionsCount = todaySubmissionsCount,
                 Page = page,
                 PageSize = pageSize,
                 TotalPages = totalPages,
@@ -197,6 +211,13 @@ namespace DynamicForm.Services
             var totalCount = await query.CountAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
+            // Calculate today's submissions count for active form only
+            var today = DateTime.UtcNow.Date;
+            var todaySubmissionsCount = await _context.FormSubmissions
+                .Include(s => s.Form)
+                .Where(s => s.Form.IsActive && s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
+                .CountAsync();
+
             // Apply pagination
             var submissions = await query
                 .OrderByDescending(s => s.SubmittedDate)
@@ -224,6 +245,7 @@ namespace DynamicForm.Services
             {
                 Items = summaryItems,
                 TotalCount = totalCount,
+                TodaySubmissionsCount = todaySubmissionsCount,
                 Page = page,
                 PageSize = pageSize,
                 TotalPages = totalPages,
