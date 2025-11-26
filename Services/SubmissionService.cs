@@ -21,7 +21,7 @@ namespace DynamicForm.Services
             _logger = logger;
         }
 
-        public async Task<PagedResult<FormSubmissionSummaryDto>> GetAllSubmissionsAsync(
+        public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetAllSubmissionsAsync(
             int page,
             int pageSize,
             DateTime? fromDate,
@@ -89,7 +89,7 @@ namespace DynamicForm.Services
                 Values = CreateSubmissionValueSummary(submission.FormSubmissionValues)
             });
 
-            return new PagedResult<FormSubmissionSummaryDto>
+            return new PagedResultSubmission<FormSubmissionSummaryDto>
             {
                 TotalCount = totalCount,
                 TodaySubmissionsCount = todaySubmissionsCount,
@@ -102,7 +102,7 @@ namespace DynamicForm.Services
             };
         }
 
-        public async Task<PagedResult<FormSubmissionSummaryDto>> GetSubmissionsByFormIdAsync(
+        public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetSubmissionsByFormIdAsync(
             int formId,
             int page,
             int pageSize,
@@ -165,7 +165,7 @@ namespace DynamicForm.Services
                 Values = CreateSubmissionValueSummary(submission.FormSubmissionValues)
             });
 
-            return new PagedResult<FormSubmissionSummaryDto>
+            return new PagedResultSubmission<FormSubmissionSummaryDto>
             {
                 Items = summaryItems,
                 TotalCount = totalCount,
@@ -178,7 +178,7 @@ namespace DynamicForm.Services
             };
         }
 
-        public async Task<PagedResult<FormSubmissionSummaryDto>> GetActiveFormSubmissionsAsync(
+        public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetActiveFormSubmissionsAsync(
             int page,
             int pageSize,
             DateTime? fromDate,
@@ -241,7 +241,7 @@ namespace DynamicForm.Services
                 Values = CreateSubmissionValueSummary(submission.FormSubmissionValues)
             });
 
-            return new PagedResult<FormSubmissionSummaryDto>
+            return new PagedResultSubmission<FormSubmissionSummaryDto>
             {
                 Items = summaryItems,
                 TotalCount = totalCount,

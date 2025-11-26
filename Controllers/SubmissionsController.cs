@@ -32,10 +32,10 @@ namespace DynamicForm.Controllers
         ///     forms)
         /// </param>
         [HttpGet]
-        [ProducesResponseType(typeof(ApiResponse<PagedResult<FormSubmissionSummaryDto>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<PagedResult<FormSubmissionSummaryDto>>> GetAllSubmissions([FromQuery] int page = 1,
+        public async Task<ActionResult<PagedResultSubmission<FormSubmissionSummaryDto>>> GetAllSubmissions([FromQuery] int page = 1,
             [FromQuery] int pageSize = 10, [FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null,
             [FromQuery] string? status = null, [FromQuery] bool? isActive = null)
         {
@@ -54,7 +54,7 @@ namespace DynamicForm.Controllers
 
                 var submissions = await _submissionService.GetAllSubmissionsAsync(page, pageSize, fromDate, toDate, status, isActive);
 
-                return Ok(new ApiResponse<PagedResult<FormSubmissionSummaryDto>>
+                return Ok(new ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>
                 {
                     Success = true, Message = "تم جلب جميع المرسلات بنجاح", Data = submissions
                 });
@@ -73,11 +73,11 @@ namespace DynamicForm.Controllers
         /// <param name="toDate">Filter submissions until this date</param>
         /// <param name="status">Filter by status</param>
         [HttpGet("active")]
-        [ProducesResponseType(typeof(ApiResponse<PagedResult<FormSubmissionSummaryDto>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<PagedResult<FormSubmissionSummaryDto>>> GetActiveFormSubmissions([FromQuery] int page = 1,
+        public async Task<ActionResult<PagedResultSubmission<FormSubmissionSummaryDto>>> GetActiveFormSubmissions([FromQuery] int page = 1,
             [FromQuery] int pageSize = 10, [FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null,
             [FromQuery] string? status = null)
         {
@@ -98,13 +98,13 @@ namespace DynamicForm.Controllers
 
                 if (!submissions.Items.Any())
                 {
-                    return Ok(new ApiResponse<PagedResult<FormSubmissionSummaryDto>>
+                    return Ok(new ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>
                     {
                         Success = true, Message = "لا توجد مرسلات للنموذج النشط حاليًا", Data = submissions
                     });
                 }
 
-                return Ok(new ApiResponse<PagedResult<FormSubmissionSummaryDto>>
+                return Ok(new ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>
                 {
                     Success = true, Message = "تم جلب مرسلات النموذج النشط بنجاح", Data = submissions
                 });
@@ -124,10 +124,10 @@ namespace DynamicForm.Controllers
         /// <param name="toDate">Filter submissions until this date</param>
         /// <param name="status">Filter by status</param>
         [HttpGet("form/{formId}")]
-        [ProducesResponseType(typeof(ApiResponse<PagedResult<FormSubmissionSummaryDto>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<ApiResponse<PagedResult<FormSubmissionSummaryDto>>>> GetSubmissionsByFormId(int formId,
+        public async Task<ActionResult<ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>>> GetSubmissionsByFormId(int formId,
             [FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null,
             [FromQuery] string? status = null)
         {
@@ -146,7 +146,7 @@ namespace DynamicForm.Controllers
 
                 var submissions = await _submissionService.GetSubmissionsByFormIdAsync(formId, page, pageSize, fromDate, toDate, status);
 
-                return Ok(new ApiResponse<PagedResult<FormSubmissionSummaryDto>>
+                return Ok(new ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>
                 {
                     Success = true, Message = $"تم جلب مرسلات النموذج رقم {formId} بنجاح", Data = submissions
                 });

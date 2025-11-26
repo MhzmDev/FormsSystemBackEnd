@@ -71,14 +71,14 @@ namespace DynamicForm.Controllers
         [HttpGet]
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<FormDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<ApiResponse<PagedResult<FormDto>>>> GetAllForms([FromQuery] bool? isActive = null,
+        public async Task<ActionResult<ApiResponse<PagedResultSubmission<FormDto>>>> GetAllForms([FromQuery] bool? isActive = null,
             [FromQuery] int pageIndex = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
                 if (pageIndex < 1)
                 {
-                    return BadRequest(new ApiResponse<PagedResult<FormDto>>
+                    return BadRequest(new ApiResponse<PagedResultSubmission<FormDto>>
                     {
                         Success = false,
                         Message = "رقم الصفحه يجب ان يكون 1 واقل من 50"
@@ -87,7 +87,7 @@ namespace DynamicForm.Controllers
 
                 if (pageSize < 1 || pageSize > 50)
                 {
-                    return BadRequest(new ApiResponse<PagedResult<FormDto>>
+                    return BadRequest(new ApiResponse<PagedResultSubmission<FormDto>>
                     {
                         Success = false,
                         Message = "حجم الصفحه يجب ان يكون بين 1 و 50"
