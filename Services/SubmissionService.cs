@@ -62,9 +62,23 @@ namespace DynamicForm.Services
 
             // Calculate today's submissions count
             var today = DateTime.UtcNow.Date;
+
             var todaySubmissionsCount = await _context.FormSubmissions
                 .Where(s => s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
                 .CountAsync();
+
+            // NEW: Calculate approved submissions count (within date range)
+            var approvedSubmissionsCount = await query
+                .Where(s => s.Status == "مقبول")
+                .CountAsync();
+
+            // NEW: Calculate rejected submissions count (within date range)
+            var rejectedSubmissionsCount = await query
+                .Where(s => s.Status == "مرفوض")
+                .CountAsync();
+
+            // NEW: Total submissions count (same as totalCount since it's already filtered)
+            var totalSubmissionsCount = totalCount;
 
             // Apply pagination
             var submissions = await query
@@ -93,6 +107,8 @@ namespace DynamicForm.Services
             {
                 TotalCount = totalCount,
                 TodaySubmissionsCount = todaySubmissionsCount,
+                ApprovedSubmissionsCount = approvedSubmissionsCount, // NEW
+                RejectedSubmissionsCount = rejectedSubmissionsCount, // NEW
                 Items = summaryItems,
                 Page = page,
                 PageSize = pageSize,
@@ -138,8 +154,19 @@ namespace DynamicForm.Services
 
             // Calculate today's submissions count for this specific form
             var today = DateTime.UtcNow.Date;
+
             var todaySubmissionsCount = await _context.FormSubmissions
                 .Where(s => s.FormId == formId && s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
+                .CountAsync();
+
+            // NEW: Calculate approved submissions count (within date range)
+            var approvedSubmissionsCount = await query
+                .Where(s => s.Status == "مقبول")
+                .CountAsync();
+
+            // NEW: Calculate rejected submissions count (within date range)
+            var rejectedSubmissionsCount = await query
+                .Where(s => s.Status == "مرفوض")
                 .CountAsync();
 
             // Apply pagination
@@ -170,6 +197,8 @@ namespace DynamicForm.Services
                 Items = summaryItems,
                 TotalCount = totalCount,
                 TodaySubmissionsCount = todaySubmissionsCount,
+                ApprovedSubmissionsCount = approvedSubmissionsCount, // NEW
+                RejectedSubmissionsCount = rejectedSubmissionsCount, // NEW
                 Page = page,
                 PageSize = pageSize,
                 TotalPages = totalPages,
@@ -213,9 +242,20 @@ namespace DynamicForm.Services
 
             // Calculate today's submissions count for active form only
             var today = DateTime.UtcNow.Date;
+
             var todaySubmissionsCount = await _context.FormSubmissions
                 .Include(s => s.Form)
                 .Where(s => s.Form.IsActive && s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
+                .CountAsync();
+
+            // NEW: Calculate approved submissions count(within date range)
+            var approvedSubmissionsCount = await query
+                .Where(s => s.Status == "مقبول")
+                .CountAsync();
+
+            // NEW: Calculate rejected submissions count (within date range)
+            var rejectedSubmissionsCount = await query
+                .Where(s => s.Status == "مرفوض")
                 .CountAsync();
 
             // Apply pagination
@@ -246,6 +286,8 @@ namespace DynamicForm.Services
                 Items = summaryItems,
                 TotalCount = totalCount,
                 TodaySubmissionsCount = todaySubmissionsCount,
+                ApprovedSubmissionsCount = approvedSubmissionsCount, // NEW
+                RejectedSubmissionsCount = rejectedSubmissionsCount, // NEW
                 Page = page,
                 PageSize = pageSize,
                 TotalPages = totalPages,
@@ -329,6 +371,17 @@ namespace DynamicForm.Services
             return true;
         }
 
+        public List<SubmissionValueSummaryDto> CreateSubmissionValueSummary(ICollection<FormSubmissionValue> values)
+        {
+            return values.OrderBy(v => v.FieldId)
+                .Select(v => new SubmissionValueSummaryDto
+                {
+                    ArLabel = v.LabelAtSubmission,
+                    EnLabel = GenerateEnglishLabel(v.FieldNameAtSubmission),
+                    Value = v.FieldValue
+                }).ToList();
+        }
+
         private async Task SendApprovalWhatsAppMessageAsync(FormSubmission submission)
         {
             try
@@ -407,8 +460,7 @@ namespace DynamicForm.Services
                     _logger.LogError("Failed to send WhatsApp approval message for submission {SubmissionId} to {Phone}",
                         submission.SubmissionId, phoneNumber);
                 }
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending WhatsApp approval message for submission {SubmissionId}", submission.SubmissionId);
             }
@@ -436,17 +488,6 @@ namespace DynamicForm.Services
             }
 
             return string.Join(" - ", preview.Take(2));
-        }
-
-        public List<SubmissionValueSummaryDto> CreateSubmissionValueSummary(ICollection<FormSubmissionValue> values)
-        {
-            return values.OrderBy(v => v.FieldId)
-                .Select(v => new SubmissionValueSummaryDto
-                {
-                    ArLabel = v.LabelAtSubmission,
-                    EnLabel = GenerateEnglishLabel(v.FieldNameAtSubmission),
-                    Value = v.FieldValue
-                }).ToList();
         }
 
         private string GenerateEnglishLabel(string fieldName)

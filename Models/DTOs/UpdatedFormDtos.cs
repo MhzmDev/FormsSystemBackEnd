@@ -44,6 +44,8 @@ namespace DynamicForm.Models.DTOs
         public IEnumerable<T> Items { get; set; } = new List<T>();
         public int TotalCount { get; set; }
         public int TodaySubmissionsCount { get; set; } // Count of submissions today
+        public int ApprovedSubmissionsCount { get; set; } // NEW: Count of approved submissions
+        public int RejectedSubmissionsCount { get; set; } // NEW: Count of rejected submissions
         public int Page { get; set; }
         public int PageSize { get; set; }
         public int TotalPages { get; set; }

@@ -197,7 +197,7 @@ namespace DynamicForm.Controllers
         /// </summary>
         [Authorize(Roles = UserRoles.SuperAdmin)]
         [HttpGet]
-        [ProducesResponseType(typeof(ApiResponse<PagedResultSubmission<UserInfoDto>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<UserInfoDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<PagedResult<UserInfoDto>>>> GetAllUsers([FromQuery] int page = 1, [FromQuery] int pageSize = 10,
             [FromQuery] bool? isActive = null)
