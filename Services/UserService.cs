@@ -13,10 +13,7 @@ namespace DynamicForm.Services
         private readonly IJwtService _jwtService;
         private readonly ILogger<UserService> _logger;
 
-        public UserService(
-            ApplicationDbContext context,
-            IJwtService jwtService,
-            ILogger<UserService> logger)
+        public UserService(ApplicationDbContext context, IJwtService jwtService, ILogger<UserService> logger)
         {
             _context = context;
             _jwtService = jwtService;

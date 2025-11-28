@@ -9,12 +9,16 @@ namespace DynamicForm.Services
 {
     public class JwtService : IJwtService
     {
+        private readonly int _accessTokenExpirationMinutes;
         private readonly IConfiguration _configuration;
         private readonly ILogger<JwtService> _logger;
+        private readonly double _refreshTokenExpirationDays;
 
         public JwtService(IConfiguration configuration, ILogger<JwtService> logger)
         {
             _configuration = configuration;
+            _accessTokenExpirationMinutes = _configuration.GetValue<int>("Jwt:AccessTokenExpiryMinutes", 60);
+            _refreshTokenExpirationDays = _configuration.GetValue<double>("Jwt:RefreshTokenExpiryDays", 3);
             _logger = logger;
         }
 
@@ -22,7 +26,7 @@ namespace DynamicForm.Services
         {
             var securityKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(_configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured")));
-            
+
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
             var claims = new[]
@@ -51,6 +55,7 @@ namespace DynamicForm.Services
             var randomNumber = new byte[64];
             using var rng = RandomNumberGenerator.Create();
             rng.GetBytes(randomNumber);
+
             return Convert.ToBase64String(randomNumber);
         }
 
@@ -69,22 +74,22 @@ namespace DynamicForm.Services
             };
 
             var tokenHandler = new JwtSecurityTokenHandler();
-            
+
             try
             {
                 var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out var securityToken);
-                
-                if (securityToken is not JwtSecurityToken jwtSecurityToken || 
+
+                if (securityToken is not JwtSecurityToken jwtSecurityToken ||
                     !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
                 {
                     throw new SecurityTokenException("Invalid token");
                 }
 
                 return principal;
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to validate token");
+
                 return null;
             }
         }
@@ -92,12 +97,13 @@ namespace DynamicForm.Services
         public DateTime GetAccessTokenExpiry()
         {
             var expiryMinutes = _configuration.GetValue<int>("Jwt:AccessTokenExpiryMinutes", 60);
+
             return DateTime.UtcNow.AddMinutes(expiryMinutes);
         }
 
         public DateTime GetRefreshTokenExpiry()
         {
-            return DateTime.UtcNow.AddDays(3); // 3 days as requested
+            return DateTime.UtcNow.AddDays(_refreshTokenExpirationDays); // 3 days as requested
         }
     }
 }
