@@ -21,13 +21,8 @@ namespace DynamicForm.Services
             _logger = logger;
         }
 
-        public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetAllSubmissionsAsync(
-            int page,
-            int pageSize,
-            DateTime? fromDate,
-            DateTime? toDate,
-            string? status,
-            bool? isActive)
+        public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetAllSubmissionsAsync(int page, int pageSize, DateTime? fromDate,
+            DateTime? toDate, string? status, bool? isActive)
         {
             var query = _context.FormSubmissions
                 .Include(s => s.Form)
@@ -67,6 +62,16 @@ namespace DynamicForm.Services
                 .Where(s => s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
                 .CountAsync();
 
+            // NEW: Calculate today's approved submissions count
+            var todayApprovedSubmissionsCount = await query
+                .Where(s => s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1) && s.Status == "مقبول")
+                .CountAsync();
+
+            // NEW: Calculate today's rejected submissions count
+            var todayRejectedSubmissionsCount = await query
+                .Where(s => s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1) && s.Status == "مرفوض")
+                .CountAsync();
+
             // NEW: Calculate approved submissions count (within date range)
             var approvedSubmissionsCount = await query
                 .Where(s => s.Status == "مقبول")
@@ -76,9 +81,6 @@ namespace DynamicForm.Services
             var rejectedSubmissionsCount = await query
                 .Where(s => s.Status == "مرفوض")
                 .CountAsync();
-
-            // NEW: Total submissions count (same as totalCount since it's already filtered)
-            var totalSubmissionsCount = totalCount;
 
             // Apply pagination
             var submissions = await query
@@ -107,6 +109,8 @@ namespace DynamicForm.Services
             {
                 TotalCount = totalCount,
                 TodaySubmissionsCount = todaySubmissionsCount,
+                TodayApprovedSubmissionsCount = todayApprovedSubmissionsCount, // NEW
+                TodayRejectedSubmissionsCount = todayRejectedSubmissionsCount, // NEW
                 ApprovedSubmissionsCount = approvedSubmissionsCount, // NEW
                 RejectedSubmissionsCount = rejectedSubmissionsCount, // NEW
                 Items = summaryItems,
@@ -118,13 +122,8 @@ namespace DynamicForm.Services
             };
         }
 
-        public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetSubmissionsByFormIdAsync(
-            int formId,
-            int page,
-            int pageSize,
-            DateTime? fromDate,
-            DateTime? toDate,
-            string? status)
+        public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetSubmissionsByFormIdAsync(int formId, int page, int pageSize,
+            DateTime? fromDate, DateTime? toDate, string? status)
         {
             var query = _context.FormSubmissions
                 .Include(s => s.Form)
@@ -159,6 +158,16 @@ namespace DynamicForm.Services
                 .Where(s => s.FormId == formId && s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
                 .CountAsync();
 
+            // NEW: Calculate today's approved submissions count
+            var todayApprovedSubmissionsCount = await query
+                .Where(s => s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1) && s.Status == "مقبول")
+                .CountAsync();
+
+            // NEW: Calculate today's rejected submissions count
+            var todayRejectedSubmissionsCount = await query
+                .Where(s => s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1) && s.Status == "مرفوض")
+                .CountAsync();
+
             // NEW: Calculate approved submissions count (within date range)
             var approvedSubmissionsCount = await query
                 .Where(s => s.Status == "مقبول")
@@ -197,6 +206,8 @@ namespace DynamicForm.Services
                 Items = summaryItems,
                 TotalCount = totalCount,
                 TodaySubmissionsCount = todaySubmissionsCount,
+                TodayApprovedSubmissionsCount = todayApprovedSubmissionsCount, // NEW
+                TodayRejectedSubmissionsCount = todayRejectedSubmissionsCount, // NEW
                 ApprovedSubmissionsCount = approvedSubmissionsCount, // NEW
                 RejectedSubmissionsCount = rejectedSubmissionsCount, // NEW
                 Page = page,
@@ -207,12 +218,8 @@ namespace DynamicForm.Services
             };
         }
 
-        public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetActiveFormSubmissionsAsync(
-            int page,
-            int pageSize,
-            DateTime? fromDate,
-            DateTime? toDate,
-            string? status)
+        public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetActiveFormSubmissionsAsync(int page, int pageSize, DateTime? fromDate,
+            DateTime? toDate, string? status)
         {
             var query = _context.FormSubmissions
                 .Include(s => s.Form)
@@ -246,6 +253,16 @@ namespace DynamicForm.Services
             var todaySubmissionsCount = await _context.FormSubmissions
                 .Include(s => s.Form)
                 .Where(s => s.Form.IsActive && s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
+                .CountAsync();
+
+            // NEW: Calculate today's approved submissions count
+            var todayApprovedSubmissionsCount = await query
+                .Where(s => s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1) && s.Status == "مقبول")
+                .CountAsync();
+
+            // NEW: Calculate today's rejected submissions count
+            var todayRejectedSubmissionsCount = await query
+                .Where(s => s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1) && s.Status == "مرفوض")
                 .CountAsync();
 
             // NEW: Calculate approved submissions count(within date range)
@@ -286,6 +303,8 @@ namespace DynamicForm.Services
                 Items = summaryItems,
                 TotalCount = totalCount,
                 TodaySubmissionsCount = todaySubmissionsCount,
+                TodayApprovedSubmissionsCount = todayApprovedSubmissionsCount, // NEW
+                TodayRejectedSubmissionsCount = todayRejectedSubmissionsCount, // NEW
                 ApprovedSubmissionsCount = approvedSubmissionsCount, // NEW
                 RejectedSubmissionsCount = rejectedSubmissionsCount, // NEW
                 Page = page,
