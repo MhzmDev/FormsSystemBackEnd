@@ -4,6 +4,7 @@ using DynamicForm.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Reflection.Metadata;
 using System.Text.RegularExpressions;
+using System.Text;
 using static Azure.Core.HttpHeader;
 
 namespace DynamicForm.Services
@@ -11,14 +12,165 @@ namespace DynamicForm.Services
     public class SubmissionService : ISubmissionService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IEmailService _emailService;
         private readonly ILogger<SubmissionService> _logger;
         private readonly IWhatsAppService _whatsAppService;
 
-        public SubmissionService(ApplicationDbContext context, IWhatsAppService whatsAppService, ILogger<SubmissionService> logger)
+        public SubmissionService(ApplicationDbContext context, IWhatsAppService whatsAppService, IEmailService emailService,
+            ILogger<SubmissionService> logger)
         {
             _context = context;
             _whatsAppService = whatsAppService;
+            _emailService = emailService;
             _logger = logger;
+        }
+
+        public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetSubmissionsByRejectionReasonAsync(
+            string rejectionReason,
+            int page,
+            int pageSize,
+            DateTime? fromDate,
+            DateTime? toDate)
+        {
+            var query = _context.FormSubmissions
+                .Include(s => s.Form)
+                .Include(s => s.FormSubmissionValues)
+                .Where(s => s.RejectionReason == rejectionReason || s.RejectionReasonEn == rejectionReason)
+                .AsQueryable();
+
+            // Apply date filters
+            if (fromDate.HasValue)
+            {
+                query = query.Where(s => s.SubmittedDate >= fromDate.Value);
+            }
+
+            if (toDate.HasValue)
+            {
+                query = query.Where(s => s.SubmittedDate <= toDate.Value);
+            }
+
+            // Get total count for pagination
+            var totalCount = await query.CountAsync();
+            var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+            // Calculate today's submissions count
+            var today = DateTime.UtcNow.Date;
+
+            var todaySubmissionsCount = await query
+                .Where(s => s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
+                .CountAsync();
+
+            // Apply pagination
+            var submissions = await query
+                .OrderByDescending(s => s.SubmittedDate)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var summaryItems = submissions.Select(submission => new FormSubmissionSummaryDto
+            {
+                SubmissionId = submission.SubmissionId,
+                FormId = submission.FormId,
+                FormName = submission.Form.Name,
+                SubmittedDate = submission.SubmittedDate,
+                Status = submission.Status,
+                SubmittedBy = submission.SubmittedBy,
+                PhoneNumber = submission.FormSubmissionValues
+                    .FirstOrDefault(v => v.FieldNameAtSubmission.Contains("phone", StringComparison.OrdinalIgnoreCase))?.FieldValue,
+                RejectionReason = submission.RejectionReason,
+                RejectionReasonEn = submission.RejectionReasonEn,
+                Preview = CreateSubmissionPreview(submission.FormSubmissionValues),
+                Values = CreateSubmissionValueSummary(submission.FormSubmissionValues)
+            });
+
+            return new PagedResultSubmission<FormSubmissionSummaryDto>
+            {
+                TotalCount = totalCount,
+                TodaySubmissionsCount = todaySubmissionsCount,
+                TodayApprovedSubmissionsCount = 0,
+                TodayRejectedSubmissionsCount = todaySubmissionsCount,
+                ApprovedSubmissionsCount = 0,
+                RejectedSubmissionsCount = totalCount,
+                Items = summaryItems,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = totalPages,
+                HasNextPage = page < totalPages,
+                HasPreviousPage = page > 1
+            };
+        }
+
+        public async Task<bool> ExportSubmissionsToCSVAndEmailAsync(string rejectionReason, DateTime? fromDate, DateTime? toDate,
+            string recipientEmail)
+        {
+            try
+            {
+                _logger.LogInformation("Starting CSV export for rejection reason: {RejectionReason}", rejectionReason);
+
+                // Get all submissions without pagination
+                var query = _context.FormSubmissions
+                    .Include(s => s.Form)
+                    .Include(s => s.FormSubmissionValues)
+                    .Where(s => s.RejectionReason == rejectionReason || s.RejectionReasonEn == rejectionReason)
+                    .AsQueryable();
+
+                if (fromDate.HasValue)
+                {
+                    query = query.Where(s => s.SubmittedDate >= fromDate.Value);
+                }
+
+                if (toDate.HasValue)
+                {
+                    query = query.Where(s => s.SubmittedDate <= toDate.Value);
+                }
+
+                var submissions = await query
+                    .OrderByDescending(s => s.SubmittedDate)
+                    .ToListAsync();
+
+                if (!submissions.Any())
+                {
+                    _logger.LogWarning("No submissions found for rejection reason: {RejectionReason}", rejectionReason);
+
+                    return false;
+                }
+
+                // Generate CSV content
+                var csvContent = GenerateCSVContent(submissions);
+
+                // Convert to byte array
+                var csvBytes = Encoding.UTF8.GetBytes(csvContent);
+
+                // Prepare email details
+                var subject = $"تقرير الطلبات المرفوضة - {rejectionReason}";
+
+                var body = $@"
+                    <html dir='rtl'>
+                    <body style='font-family: Arial, sans-serif;'>
+                        <h2>تقرير الطلبات المرفوضة</h2>
+                        <p>السبب: <strong>{rejectionReason}</strong></p>
+                        <p>عدد الطلبات: <strong>{submissions.Count}</strong></p>
+                        <p>التاريخ من: {fromDate?.ToString("yyyy-MM-dd") ?? "غير محدد"}</p>
+                        <p>التاريخ إلى: {toDate?.ToString("yyyy-MM-dd") ?? "غير محدد"}</p>
+                        <p>يرجى الاطلاع على الملف المرفق للحصول على التفاصيل الكاملة.</p>
+                    </body>
+                    </html>
+                ";
+
+                var fileName = $"rejected_submissions_{rejectionReason}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv";
+
+                // Send email with attachment
+                await _emailService.SendEmailWithAttachmentAsync(recipientEmail, subject, body, csvBytes, fileName, "text/csv");
+
+                _logger.LogInformation("CSV export email sent successfully to {Email}", recipientEmail);
+
+                return true;
+            } catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error exporting submissions to CSV and sending email");
+
+                return false;
+            }
         }
 
         public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetAllSubmissionsAsync(int page, int pageSize, DateTime? fromDate,
@@ -399,6 +551,79 @@ namespace DynamicForm.Services
                     EnLabel = GenerateEnglishLabel(v.FieldNameAtSubmission),
                     Value = v.FieldValue
                 }).ToList();
+        }
+
+        private string GenerateCSVContent(List<FormSubmission> submissions)
+        {
+            var csv = new StringBuilder();
+
+            // Get all unique field names across all submissions
+            var allFieldNames = submissions
+                .SelectMany(s => s.FormSubmissionValues)
+                .Select(v => v.FieldNameAtSubmission)
+                .Distinct()
+                .OrderBy(f => f)
+                .ToList();
+
+            // Build header
+            var headers = new List<string>
+            {
+                "رقم الطلب",
+                "اسم النموذج",
+                "تاريخ التقديم",
+                "الحالة",
+                "مقدم الطلب",
+                "رقم الهاتف",
+                "سبب الرفض"
+            };
+
+            headers.AddRange(allFieldNames);
+            csv.AppendLine(string.Join(",", headers.Select(h => EscapeCSVField(h))));
+
+            // Build rows
+            foreach (var submission in submissions)
+            {
+                var row = new List<string>
+                {
+                    submission.SubmissionId.ToString(),
+                    EscapeCSVField(submission.Form.Name),
+                    submission.SubmittedDate.ToString("yyyy-MM-dd HH:mm:ss"),
+                    EscapeCSVField(submission.Status),
+                    EscapeCSVField(submission.SubmittedBy ?? ""),
+                    EscapeCSVField(submission.FormSubmissionValues
+                        .FirstOrDefault(v => v.FieldNameAtSubmission.Contains("phone", StringComparison.OrdinalIgnoreCase))?.FieldValue ?? ""),
+                    EscapeCSVField(submission.RejectionReason ?? "")
+                };
+
+                // Add field values in the same order as headers
+                foreach (var fieldName in allFieldNames)
+                {
+                    var value = submission.FormSubmissionValues
+                        .FirstOrDefault(v => v.FieldNameAtSubmission == fieldName)?.FieldValue ?? "";
+
+                    row.Add(EscapeCSVField(value));
+                }
+
+                csv.AppendLine(string.Join(",", row));
+            }
+
+            return csv.ToString();
+        }
+
+        private string EscapeCSVField(string field)
+        {
+            if (string.IsNullOrEmpty(field))
+            {
+                return "\"\"";
+            }
+
+            // Escape quotes and wrap in quotes if contains comma, quote, or newline
+            if (field.Contains(",") || field.Contains("\"") || field.Contains("\n") || field.Contains("\r"))
+            {
+                return $"\"{field.Replace("\"", "\"\"")}\"";
+            }
+
+            return $"\"{field}\"";
         }
 
         private async Task SendApprovalWhatsAppMessageAsync(FormSubmission submission)

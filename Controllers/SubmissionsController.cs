@@ -3,6 +3,7 @@ using DynamicForm.Services;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace DynamicForm.Controllers
 {
@@ -260,6 +261,129 @@ namespace DynamicForm.Controllers
                 {
                     Success = true,
                     Message = "تم حذف المرسلة بنجاح"
+                });
+            } catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "حدث خطأ في النظام",
+                    Error = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
+        ///     Get submissions by rejection reason
+        /// </summary>
+        [HttpGet("by-rejection-reason")]
+        [ProducesResponseType(typeof(ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>>> GetSubmissionsByRejectionReason(
+            [FromQuery] string rejectionReason,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10,
+            [FromQuery] DateTime? fromDate = null,
+            [FromQuery] DateTime? toDate = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(rejectionReason))
+                {
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "يجب تحديد سبب الرفض"
+                    });
+                }
+
+                if (page < 1)
+                {
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "رقم الصفحة يجب أن يكون أكبر من 0"
+                    });
+                }
+
+                if (pageSize < 1 || pageSize > 100)
+                {
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "حجم الصفحة يجب أن يكون بين 1 و 100"
+                    });
+                }
+
+                var submissions = await _submissionService.GetSubmissionsByRejectionReasonAsync(
+                    rejectionReason, page, pageSize, fromDate, toDate);
+
+                return Ok(new ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>
+                {
+                    Success = true,
+                    Message = $"تم جلب الطلبات المرفوضة بسبب '{rejectionReason}' بنجاح",
+                    Data = submissions
+                });
+            } catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "حدث خطأ في النظام",
+                    Error = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
+        ///     Export submissions by rejection reason to CSV and send via email
+        /// </summary>
+        [HttpPost("export-by-rejection-reason")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ApiResponse<object>>> ExportSubmissionsByRejectionReason(
+            [FromBody] ExportSubmissionsRequest request)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(request.RejectionReason))
+                {
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "يجب تحديد سبب الرفض"
+                    });
+                }
+
+                var userEmail = User.FindFirstValue(ClaimTypes.Email);
+
+                if (string.IsNullOrWhiteSpace(userEmail))
+                {
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "لم يتم العثور علي بريد الكتروني من المستخدم الحالي"
+                    });
+                }
+
+                var result = await _submissionService.ExportSubmissionsToCSVAndEmailAsync(request.RejectionReason, request.FromDate, request.ToDate,
+                    userEmail);
+
+                if (!result)
+                {
+                    return NotFound(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "لا توجد طلبات مرفوضة بهذا السبب أو حدث خطأ أثناء التصدير"
+                    });
+                }
+
+                return Ok(new ApiResponse<object>
+                {
+                    Success = true,
+                    Message = $"تم إرسال التقرير بنجاح إلى {userEmail}"
                 });
             } catch (Exception ex)
             {

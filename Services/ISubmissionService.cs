@@ -18,5 +18,10 @@ namespace DynamicForm.Services
         Task<bool> UpdateSubmissionStatusAsync(int submissionId, string status);
         Task<bool> DeleteSubmissionAsync(int submissionId);
         List<SubmissionValueSummaryDto> CreateSubmissionValueSummary(ICollection<FormSubmissionValue> values);
+
+        Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetSubmissionsByRejectionReasonAsync(string rejectionReason, int page, int pageSize,
+            DateTime? fromDate, DateTime? toDate);
+
+        Task<bool> ExportSubmissionsToCSVAndEmailAsync(string rejectionReason, DateTime? fromDate, DateTime? toDate, string recipientEmail);
     }
 }

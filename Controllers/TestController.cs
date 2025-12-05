@@ -4,19 +4,51 @@ using DynamicForm.Models.DTOs;
 
 namespace DynamicForm.Controllers;
 
-#if DEBUG
-[ApiExplorerSettings(IgnoreApi = true)]
+//#if DEBUG
+//[ApiExplorerSettings(IgnoreApi = true)]
 [ApiController]
 [Route("api/[controller]")]
 public class TestController : ControllerBase
 {
+    private readonly IEmailService _emailService;
     private readonly IFormService _formService;
     private readonly ILogger<TestController> _logger;
 
-    public TestController(IFormService formService, ILogger<TestController> logger)
+    public TestController(IFormService formService, ILogger<TestController> logger, IEmailService emailService)
     {
         _formService = formService;
         _logger = logger;
+        _emailService = emailService;
+    }
+
+    [HttpPost("send-test-email")]
+    public async Task<IActionResult> SendTestEmail([FromQuery] string recipientEmail)
+    {
+        try
+        {
+            var testContent = System.Text.Encoding.UTF8.GetBytes("This is a test attachment");
+
+            var result = await _emailService.SendEmailWithAttachmentAsync(
+                recipientEmail,
+                "اختبار النظام - Test Email",
+                "<h2>مرحباً!</h2><p>هذا بريد اختباري من نظام النماذج الديناميكية</p>",
+                testContent,
+                "test.txt",
+                "text/plain"
+            );
+
+            if (result)
+            {
+                return Ok(new { success = true, message = "Email sent successfully!" });
+            }
+
+            return BadRequest(new { success = false, message = "Failed to send email" });
+        } catch (Exception ex)
+        {
+            _logger.LogError(ex, "Test email failed");
+
+            return StatusCode(500, new { success = false, message = ex.Message });
+        }
     }
 
     [HttpPost("test-validation-errors/{formId}")]
@@ -58,8 +90,7 @@ public class TestController : ControllerBase
                 RejectionReason = validResult.RejectionReason,
                 RejectionReasonEn = validResult.RejectionReasonEn
             });
-        }
-        catch (Exception ex)
+        } catch (Exception ex)
         {
             results.Add(new
             {
@@ -103,8 +134,7 @@ public class TestController : ControllerBase
                 RejectionReason = invalidResult.RejectionReason,
                 RejectionReasonEn = invalidResult.RejectionReasonEn
             });
-        }
-        catch (Exception ex)
+        } catch (Exception ex)
         {
             results.Add(new
             {
@@ -148,8 +178,7 @@ public class TestController : ControllerBase
                 RejectionReason = invalidPhoneResult.RejectionReason,
                 RejectionReasonEn = invalidPhoneResult.RejectionReasonEn
             });
-        }
-        catch (Exception ex)
+        } catch (Exception ex)
         {
             results.Add(new
             {
@@ -193,8 +222,7 @@ public class TestController : ControllerBase
                 RejectionReason = invalidBirthDateResult.RejectionReason,
                 RejectionReasonEn = invalidBirthDateResult.RejectionReasonEn
             });
-        }
-        catch (Exception ex)
+        } catch (Exception ex)
         {
             results.Add(new
             {
@@ -238,8 +266,7 @@ public class TestController : ControllerBase
                 RejectionReason = invalidSalaryResult.RejectionReason,
                 RejectionReasonEn = invalidSalaryResult.RejectionReasonEn
             });
-        }
-        catch (Exception ex)
+        } catch (Exception ex)
         {
             results.Add(new
             {
@@ -283,8 +310,7 @@ public class TestController : ControllerBase
                 RejectionReason = multipleErrorsResult.RejectionReason,
                 RejectionReasonEn = multipleErrorsResult.RejectionReasonEn
             });
-        }
-        catch (Exception ex)
+        } catch (Exception ex)
         {
             results.Add(new
             {
@@ -340,8 +366,7 @@ public class TestController : ControllerBase
                 ApprovalStatus = validResult.Status,
                 RejectionReason = validResult.RejectionReason
             });
-        }
-        catch (Exception ex)
+        } catch (Exception ex)
         {
             results.Add(new
             {
@@ -384,8 +409,7 @@ public class TestController : ControllerBase
                 ApprovalStatus = invalidResult.Status,
                 RejectionReason = invalidResult.RejectionReason
             });
-        }
-        catch (Exception ex)
+        } catch (Exception ex)
         {
             results.Add(new
             {
@@ -430,8 +454,7 @@ public class TestController : ControllerBase
                 ApprovalStatus = inconsistentResult.Status,
                 RejectionReason = inconsistentResult.RejectionReason
             });
-        }
-        catch (Exception ex)
+        } catch (Exception ex)
         {
             results.Add(new
             {
@@ -490,8 +513,7 @@ public class TestController : ControllerBase
                 RejectionReasonEn = validationResult.RejectionReasonEn,
                 Note = "Should have validation errors but NO approval errors"
             });
-        }
-        catch (Exception ex)
+        } catch (Exception ex)
         {
             results.Add(new
             {
@@ -537,8 +559,7 @@ public class TestController : ControllerBase
                 RejectionReasonEn = approvalResult.RejectionReasonEn,
                 Note = "Should have approval errors but NO validation errors"
             });
-        }
-        catch (Exception ex)
+        } catch (Exception ex)
         {
             results.Add(new
             {
@@ -584,8 +605,7 @@ public class TestController : ControllerBase
                 RejectionReasonEn = bothResult.RejectionReasonEn,
                 Note = "Should have BOTH validation AND approval errors combined"
             });
-        }
-        catch (Exception ex)
+        } catch (Exception ex)
         {
             results.Add(new
             {
@@ -631,8 +651,7 @@ public class TestController : ControllerBase
                 RejectionReasonEn = validResult.RejectionReasonEn,
                 Note = "Should be approved with no errors"
             });
-        }
-        catch (Exception ex)
+        } catch (Exception ex)
         {
             results.Add(new
             {
@@ -648,7 +667,8 @@ public class TestController : ControllerBase
             Summary = "This test demonstrates that the system now captures ALL errors (validation + approval) and saves them to the database",
             FixExplanation = new
             {
-                Problem = "Previously, if there were validation errors, approval service was never called, so approval errors were never saved to database",
+                Problem =
+                    "Previously, if there were validation errors, approval service was never called, so approval errors were never saved to database",
                 Solution = "Now BOTH validation and approval services always run, and ALL errors are collected and saved to database together",
                 Benefits = new[]
                 {
@@ -662,5 +682,4 @@ public class TestController : ControllerBase
         });
     }
 }
-
-#endif
+//#endif

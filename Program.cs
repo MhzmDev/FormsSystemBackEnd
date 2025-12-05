@@ -1,14 +1,15 @@
-﻿using Microsoft.EntityFrameworkCore;
-using DynamicForm.Data;
+﻿using DynamicForm.Data;
+using DynamicForm.Filters;
+using DynamicForm.Middleware;
+using DynamicForm.Models.Configuration;
 using DynamicForm.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Reflection;
-using DynamicForm.Filters;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using DynamicForm.Middleware;
-using Microsoft.AspNetCore.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,30 +26,38 @@ builder.Services.AddMemoryCache();
 // Add HttpClient for WhatsApp service
 builder.Services.AddHttpClient<WhatsAppService>();
 
+// ✅ Configure Email Settings with validation
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection(EmailSettings.SectionName));
+
+// Validate email settings on startup
+builder.Services.AddOptions<EmailSettings>()
+    .Bind(builder.Configuration.GetSection(EmailSettings.SectionName))
+    .ValidateOnStart();
+
 // Add Authentication Services with Custom Events
 builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured"))),
-        ClockSkew = TimeSpan.Zero
-    };
+        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    })
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(
+                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured"))),
+            ClockSkew = TimeSpan.Zero
+        };
 
-    // Add custom authentication events
-    options.Events = new JwtAuthenticationEvents();
-});
+        // Add custom authentication events
+        options.Events = new JwtAuthenticationEvents();
+    });
 
 // Add custom authorization handler
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, CustomAuthorizationMiddlewareResultHandler>();
@@ -65,6 +74,7 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IRejectionAnalyticsService, RejectionAnalyticsService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -160,14 +170,14 @@ using (var scope = app.Services.CreateScope())
 
         var formCount = await context.Forms.CountAsync();
         logger.LogInformation($"Database contains {formCount} forms after migration.");
-    }
-    catch (Exception ex)
+    } catch (Exception ex)
     {
         logger.LogError(ex, "An error occurred while migrating the database.");
 
         if (app.Environment.IsProduction())
         {
             logger.LogCritical("Application startup failed due to database migration error in production environment.");
+
             throw;
         }
         else
