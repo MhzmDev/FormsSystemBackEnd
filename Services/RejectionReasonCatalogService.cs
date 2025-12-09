@@ -198,7 +198,9 @@ namespace DynamicForm.Services
                             ReasonTextAr = validationRule.ErrorMessageAr,
                             ReasonTextEn = validationRule.ErrorMessageEn ?? validationRule.ErrorMessageAr,
                             Category = "DynamicField",
-                            FieldName = field.FieldName
+                            FieldName = field.FieldName,
+                            SearchPatternAr = validationRule.ErrorMessageAr,
+                            SearchPatternEn = validationRule.ErrorMessageEn ?? validationRule.ErrorMessageAr
                         });
                     }
                 } catch (Exception ex)
@@ -217,7 +219,8 @@ namespace DynamicForm.Services
 
             var hasCitizenshipStatus = form.FormFields.Any(f => f.FieldName == "citizenshipStatus");
             var hasMortgage = form.FormFields.Any(f => f.FieldName == "hasMortgage");
-            var hasSalaryAndCommitments = 
+
+            var hasSalaryAndCommitments =
                 form.FormFields.Any(f => f.FieldName == "monthlySalary") &&
                 form.FormFields.Any(f => f.FieldName == "monthlyCommitments");
 
