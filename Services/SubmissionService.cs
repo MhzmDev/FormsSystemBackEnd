@@ -25,17 +25,15 @@ namespace DynamicForm.Services
             _logger = logger;
         }
 
-        public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetSubmissionsByRejectionReasonAsync(
-            string rejectionReason,
-            int page,
-            int pageSize,
-            DateTime? fromDate,
-            DateTime? toDate)
+        public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetSubmissionsByRejectionReasonAsync(string rejectionReason, int page,
+            int pageSize, DateTime? fromDate, DateTime? toDate)
         {
             var query = _context.FormSubmissions
                 .Include(s => s.Form)
                 .Include(s => s.FormSubmissionValues)
-                .Where(s => s.RejectionReason == rejectionReason || s.RejectionReasonEn == rejectionReason)
+                .Where(s =>
+                    (s.RejectionReason != null && s.RejectionReason.Contains(rejectionReason)) ||
+                    (s.RejectionReasonEn != null && s.RejectionReasonEn.Contains(rejectionReason)))
                 .AsQueryable();
 
             // Apply date filters
@@ -111,7 +109,9 @@ namespace DynamicForm.Services
                 var query = _context.FormSubmissions
                     .Include(s => s.Form)
                     .Include(s => s.FormSubmissionValues)
-                    .Where(s => s.RejectionReason == rejectionReason || s.RejectionReasonEn == rejectionReason)
+                    .Where(s =>
+                        (s.RejectionReason != null && s.RejectionReason.Contains(rejectionReason)) ||
+                        (s.RejectionReasonEn != null && s.RejectionReasonEn.Contains(rejectionReason)))
                     .AsQueryable();
 
                 if (fromDate.HasValue)

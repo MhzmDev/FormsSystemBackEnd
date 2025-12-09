@@ -13,11 +13,15 @@ namespace DynamicForm.Controllers
     [Authorize] // ✅ Require authentication for all submission endpoints
     public class SubmissionsController : ControllerBase
     {
+        private readonly IRejectionReasonCatalogService _rejectionReasonCatalogService; // ✅ ADD THIS
         private readonly ISubmissionService _submissionService;
 
-        public SubmissionsController(ISubmissionService submissionService)
+        public SubmissionsController(
+            ISubmissionService submissionService,
+            IRejectionReasonCatalogService rejectionReasonCatalogService) // ✅ ADD THIS
         {
             _submissionService = submissionService;
+            _rejectionReasonCatalogService = rejectionReasonCatalogService; // ✅ ADD THIS
         }
 
         /// <summary>
@@ -281,10 +285,7 @@ namespace DynamicForm.Controllers
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>>> GetSubmissionsByRejectionReason(
-            [FromQuery] string rejectionReason,
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10,
-            [FromQuery] DateTime? fromDate = null,
+            [FromQuery] string rejectionReason, [FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] DateTime? fromDate = null,
             [FromQuery] DateTime? toDate = null)
         {
             try
@@ -384,6 +385,72 @@ namespace DynamicForm.Controllers
                 {
                     Success = true,
                     Message = $"تم إرسال التقرير بنجاح إلى {userEmail}"
+                });
+            } catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "حدث خطأ في النظام",
+                    Error = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
+        ///     Get all POSSIBLE rejection reasons for the active form (for dropdown - no database scan)
+        /// </summary>
+        [HttpGet("active/possible-rejection-reasons")]
+        [ProducesResponseType(typeof(ApiResponse<FormRejectionReasonsDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ApiResponse<FormRejectionReasonsDto>>> GetPossibleRejectionReasonsForActiveForm()
+        {
+            try
+            {
+                var result = await _rejectionReasonCatalogService.GetPossibleRejectionReasonsForActiveFormAsync();
+
+                return Ok(new ApiResponse<FormRejectionReasonsDto>
+                {
+                    Success = true,
+                    Message = "تم جلب أسباب الرفض المحتملة بنجاح",
+                    Data = result
+                });
+            } catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "حدث خطأ في النظام",
+                    Error = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
+        ///     Get all POSSIBLE rejection reasons for a specific form (for dropdown - no database scan)
+        /// </summary>
+        [HttpGet("form/{formId}/possible-rejection-reasons")]
+        [ProducesResponseType(typeof(ApiResponse<FormRejectionReasonsDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ApiResponse<FormRejectionReasonsDto>>> GetPossibleRejectionReasonsForForm(int formId)
+        {
+            try
+            {
+                var result = await _rejectionReasonCatalogService.GetPossibleRejectionReasonsForFormAsync(formId);
+
+                return Ok(new ApiResponse<FormRejectionReasonsDto>
+                {
+                    Success = true,
+                    Message = $"تم جلب أسباب الرفض المحتملة للنموذج رقم {formId} بنجاح",
+                    Data = result
+                });
+            } catch (ArgumentException ex)
+            {
+                return NotFound(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = ex.Message
                 });
             } catch (Exception ex)
             {
