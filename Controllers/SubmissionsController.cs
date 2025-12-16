@@ -36,13 +36,14 @@ namespace DynamicForm.Controllers
         ///     Filter by form active status (true for active forms, false for inactive forms, null for all
         ///     forms)
         /// </param>
+        /// <param name="sendEmail">send csv report via Email (optional, default: false)</param>
         [HttpGet]
         [ProducesResponseType(typeof(ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<PagedResultSubmission<FormSubmissionSummaryDto>>> GetAllSubmissions([FromQuery] int page = 1,
             [FromQuery] int pageSize = 10, [FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null,
-            [FromQuery] string? status = null, [FromQuery] bool? isActive = null)
+            [FromQuery] string? status = null, [FromQuery] bool? isActive = null, bool? sendEmail = null)
         {
             try
             {
@@ -57,11 +58,35 @@ namespace DynamicForm.Controllers
                     return BadRequest(new ApiResponse<object> { Success = false, Message = "عدد العناصر في الصفحة يجب أن يكون بين 1 و 100" });
                 }
 
-                var submissions = await _submissionService.GetAllSubmissionsAsync(page, pageSize, fromDate, toDate, status, isActive);
+                // Get recipient email if sendEmail is requested
+                string? recipientEmail = null;
+
+                if (sendEmail == true)
+                {
+                    recipientEmail = User.FindFirstValue(ClaimTypes.Email);
+
+                    if (string.IsNullOrWhiteSpace(recipientEmail))
+                    {
+                        return BadRequest(new ApiResponse<object>
+                        {
+                            Success = false,
+                            Message = "لم يتم العثور على البريد الإلكتروني للمستخدم الحالي"
+                        });
+                    }
+                }
+
+                var submissions = await _submissionService.GetAllSubmissionsAsync(page, pageSize, fromDate, toDate, status, isActive,
+                    sendEmail ?? false, recipientEmail);
+
+                var message = sendEmail == true
+                    ? $"تم جلب جميع المرسلات بنجاح. سيتم إرسال التقرير إلى {recipientEmail}."
+                    : "تم جلب جميع المرسلات بنجاح";
 
                 return Ok(new ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>
                 {
-                    Success = true, Message = "تم جلب جميع المرسلات بنجاح", Data = submissions
+                    Success = true,
+                    Message = message,
+                    Data = submissions
                 });
             } catch (Exception ex)
             {
@@ -77,6 +102,7 @@ namespace DynamicForm.Controllers
         /// <param name="fromDate">Filter submissions from this date</param>
         /// <param name="toDate">Filter submissions until this date</param>
         /// <param name="status">Filter by status</param>
+        /// <param name="sendEmail">Send CSV report by Email (Optional, Default: false)</param>
         [HttpGet("active")]
         [ProducesResponseType(typeof(ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -84,7 +110,7 @@ namespace DynamicForm.Controllers
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<PagedResultSubmission<FormSubmissionSummaryDto>>> GetActiveFormSubmissions([FromQuery] int page = 1,
             [FromQuery] int pageSize = 10, [FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null,
-            [FromQuery] string? status = null)
+            [FromQuery] string? status = null, bool? sendEmail = null)
         {
             try
             {
@@ -99,13 +125,38 @@ namespace DynamicForm.Controllers
                     return BadRequest(new ApiResponse<object> { Success = false, Message = "عدد العناصر في الصفحة يجب أن يكون بين 1 و 50" });
                 }
 
-                var submissions = await _submissionService.GetActiveFormSubmissionsAsync(page, pageSize, fromDate, toDate, status);
+                // Get recipient email if sendEmail is requested
+                string? recipientEmail = null;
+
+                if (sendEmail == true)
+                {
+                    recipientEmail = User.FindFirstValue(ClaimTypes.Email);
+
+                    if (string.IsNullOrWhiteSpace(recipientEmail))
+                    {
+                        return BadRequest(new ApiResponse<object>
+                        {
+                            Success = false,
+                            Message = "لم يتم العثور على البريد الإلكتروني للمستخدم الحالي"
+                        });
+                    }
+                }
+
+                var submissions =
+                    await _submissionService.GetActiveFormSubmissionsAsync(page, pageSize, fromDate, toDate, status, sendEmail ?? false,
+                        recipientEmail);
+
+                var message = sendEmail == true
+                    ? $"تم جلب مرسلات النموذج النشط بنجاح. سيتم إرسال التقرير إلى {recipientEmail}."
+                    : "تم جلب مرسلات النموذج النشط بنجاح";
 
                 if (!submissions.Items.Any())
                 {
                     return Ok(new ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>
                     {
-                        Success = true, Message = "لا توجد مرسلات للنموذج النشط حاليًا", Data = submissions
+                        Success = true,
+                        Message = message,
+                        Data = submissions
                     });
                 }
 
@@ -128,13 +179,14 @@ namespace DynamicForm.Controllers
         /// <param name="fromDate">Filter submissions from this date</param>
         /// <param name="toDate">Filter submissions until this date</param>
         /// <param name="status">Filter by status</param>
+        /// <param name="sendEmail">Send CSV report by Email (Optional, default: false)</param>
         [HttpGet("form/{formId}")]
         [ProducesResponseType(typeof(ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>>> GetSubmissionsByFormId(int formId,
             [FromQuery] int page = 1, [FromQuery] int pageSize = 10, [FromQuery] DateTime? fromDate = null, [FromQuery] DateTime? toDate = null,
-            [FromQuery] string? status = null)
+            [FromQuery] string? status = null, bool? sendEmail = null)
         {
             try
             {
@@ -149,11 +201,33 @@ namespace DynamicForm.Controllers
                     return BadRequest(new ApiResponse<object> { Success = false, Message = "حجم الصفحة يجب أن يكون بين 1 و 50" });
                 }
 
-                var submissions = await _submissionService.GetSubmissionsByFormIdAsync(formId, page, pageSize, fromDate, toDate, status);
+                // Get recipient email if sendEmail is requested
+                string? recipientEmail = null;
+
+                if (sendEmail == true)
+                {
+                    recipientEmail = User.FindFirstValue(ClaimTypes.Email);
+
+                    if (string.IsNullOrWhiteSpace(recipientEmail))
+                    {
+                        return BadRequest(new ApiResponse<object>
+                        {
+                            Success = false,
+                            Message = "لم يتم العثور على البريد الإلكتروني للمستخدم الحالي"
+                        });
+                    }
+                }
+
+                var submissions = await _submissionService.GetSubmissionsByFormIdAsync(formId, page, pageSize, fromDate, toDate, status,
+                    sendEmail ?? false, recipientEmail);
+
+                var message = sendEmail == true
+                    ? $"تم جلب مرسلات النموذج رقم {formId} بنجاح. سيتم إرسال التقرير إلى {recipientEmail}."
+                    : $"تم جلب مرسلات النموذج رقم {formId} بنجاح.";
 
                 return Ok(new ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>
                 {
-                    Success = true, Message = $"تم جلب مرسلات النموذج رقم {formId} بنجاح", Data = submissions
+                    Success = true, Message = message, Data = submissions
                 });
             } catch (Exception ex)
             {

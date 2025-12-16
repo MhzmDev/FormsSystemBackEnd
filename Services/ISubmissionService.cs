@@ -6,13 +6,13 @@ namespace DynamicForm.Services
     public interface ISubmissionService
     {
         Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetAllSubmissionsAsync(int page, int pageSize, DateTime? fromDate, DateTime? toDate,
-            string? status, bool? isActive);
+            string? status, bool? isActive, bool sendEmail = false, string? recipientEmail = null);
 
         Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetSubmissionsByFormIdAsync(int formId, int page, int pageSize, DateTime? fromDate,
-            DateTime? toDate, string? status);
+            DateTime? toDate, string? status, bool sendEmail = false, string? recipientEmail = null);
 
         Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetActiveFormSubmissionsAsync(int page, int pageSize, DateTime? fromDate,
-            DateTime? toDate, string? status);
+            DateTime? toDate, string? status, bool sendEmail = false, string? recipientEmail = null);
 
         Task<FormSubmissionResponseDto?> GetSubmissionByIdAsync(int submissionId);
         Task<bool> UpdateSubmissionStatusAsync(int submissionId, string status);

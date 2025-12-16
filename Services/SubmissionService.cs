@@ -189,6 +189,7 @@ namespace DynamicForm.Services
                 if (!submissions.Any())
                 {
                     _logger.LogWarning("No submissions provided for export");
+
                     return false;
                 }
 
@@ -222,22 +223,16 @@ namespace DynamicForm.Services
                 _logger.LogInformation("CSV export email sent successfully to {Email}", recipientEmail);
 
                 return true;
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 _logger.LogError(ex, "Error exporting submissions to CSV and sending email");
+
                 return false;
             }
         }
 
-        // Helper method to sanitize file names
-        private string SanitizeFileName(string fileName)
-        {
-            var invalidChars = Path.GetInvalidFileNameChars();
-            return string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
-        }
         public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetAllSubmissionsAsync(int page, int pageSize, DateTime? fromDate,
-            DateTime? toDate, string? status, bool? isActive)
+            DateTime? toDate, string? status, bool? isActive, bool sendEmail = false, string? recipientEmail = null)
         {
             var query = _context.FormSubmissions
                 .Include(s => s.Form)
@@ -320,6 +315,20 @@ namespace DynamicForm.Services
                 Values = CreateSubmissionValueSummary(submission.FormSubmissionValues)
             });
 
+            // Send email if requested
+            if (sendEmail && !string.IsNullOrWhiteSpace(recipientEmail))
+            {
+                var allSubmissionsForEmail = await query
+                    .OrderByDescending(s => s.SubmittedDate)
+                    .ToListAsync();
+
+                var reportTitle = BuildReportTitle("جميع الطلبات", status, isActive, fromDate, toDate);
+
+                _ = Task.Run(async () =>
+                    await ExportSubmissionsToCSVAndEmailAsync(
+                        allSubmissionsForEmail, reportTitle, recipientEmail, fromDate, toDate));
+            }
+
             return new PagedResultSubmission<FormSubmissionSummaryDto>
             {
                 TotalCount = totalCount,
@@ -338,7 +347,7 @@ namespace DynamicForm.Services
         }
 
         public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetSubmissionsByFormIdAsync(int formId, int page, int pageSize,
-            DateTime? fromDate, DateTime? toDate, string? status)
+            DateTime? fromDate, DateTime? toDate, string? status, bool sendEmail = false, string? recipientEmail = null)
         {
             var query = _context.FormSubmissions
                 .Include(s => s.Form)
@@ -416,6 +425,21 @@ namespace DynamicForm.Services
                 Values = CreateSubmissionValueSummary(submission.FormSubmissionValues)
             });
 
+            // Send email if requested
+            if (sendEmail && !string.IsNullOrWhiteSpace(recipientEmail))
+            {
+                var allSubmissionsForEmail = await query
+                    .OrderByDescending(s => s.SubmittedDate)
+                    .ToListAsync();
+
+                var formName = allSubmissionsForEmail.FirstOrDefault()?.Form?.Name ?? $"النموذج رقم {formId}";
+                var reportTitle = BuildReportTitle($"طلبات {formName}", status, null, fromDate, toDate);
+
+                _ = Task.Run(async () =>
+                    await ExportSubmissionsToCSVAndEmailAsync(
+                        allSubmissionsForEmail, reportTitle, recipientEmail, fromDate, toDate));
+            }
+
             return new PagedResultSubmission<FormSubmissionSummaryDto>
             {
                 Items = summaryItems,
@@ -434,7 +458,7 @@ namespace DynamicForm.Services
         }
 
         public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetActiveFormSubmissionsAsync(int page, int pageSize, DateTime? fromDate,
-            DateTime? toDate, string? status)
+            DateTime? toDate, string? status, bool sendEmail = false, string? recipientEmail = null)
         {
             var query = _context.FormSubmissions
                 .Include(s => s.Form)
@@ -512,6 +536,21 @@ namespace DynamicForm.Services
                 Preview = CreateSubmissionPreview(submission.FormSubmissionValues),
                 Values = CreateSubmissionValueSummary(submission.FormSubmissionValues)
             });
+
+            // Send email if requested
+            if (sendEmail && !string.IsNullOrWhiteSpace(recipientEmail))
+            {
+                var allSubmissionsForEmail = await query
+                    .OrderByDescending(s => s.SubmittedDate)
+                    .ToListAsync();
+
+                var formName = allSubmissionsForEmail.FirstOrDefault()?.Form?.Name ?? "النموذج النشط";
+                var reportTitle = BuildReportTitle($"طلبات {formName}", status, null, fromDate, toDate);
+
+                _ = Task.Run(async () =>
+                    await ExportSubmissionsToCSVAndEmailAsync(
+                        allSubmissionsForEmail, reportTitle, recipientEmail, fromDate, toDate));
+            }
 
             return new PagedResultSubmission<FormSubmissionSummaryDto>
             {
@@ -614,6 +653,14 @@ namespace DynamicForm.Services
                     EnLabel = GenerateEnglishLabel(v.FieldNameAtSubmission),
                     Value = v.FieldValue
                 }).ToList();
+        }
+
+        // Helper method to sanitize file names
+        private string SanitizeFileName(string fileName)
+        {
+            var invalidChars = Path.GetInvalidFileNameChars();
+
+            return string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
         }
 
         private string GenerateCSVContent(List<FormSubmission> submissions)
@@ -845,6 +892,37 @@ namespace DynamicForm.Services
             // Title case each word
             return string.Join(" ", result.Split(' ', StringSplitOptions.RemoveEmptyEntries)
                 .Select(word => char.ToUpper(word[0]) + word[1..].ToLower()));
+        }
+
+        // Helper method to build dynamic report titles
+        private string BuildReportTitle(string baseTitle, string? status, bool? isActive, DateTime? fromDate, DateTime? toDate)
+        {
+            var parts = new List<string> { baseTitle };
+
+            if (!string.IsNullOrEmpty(status))
+            {
+                parts.Add($"الحالة: {status}");
+            }
+
+            if (isActive.HasValue)
+            {
+                parts.Add(isActive.Value ? "نماذج نشطة" : "نماذج غير نشطة");
+            }
+
+            if (fromDate.HasValue && toDate.HasValue)
+            {
+                parts.Add($"من {fromDate:yyyy-MM-dd} إلى {toDate:yyyy-MM-dd}");
+            }
+            else if (fromDate.HasValue)
+            {
+                parts.Add($"من {fromDate:yyyy-MM-dd}");
+            }
+            else if (toDate.HasValue)
+            {
+                parts.Add($"حتى {toDate:yyyy-MM-dd}");
+            }
+
+            return string.Join(" - ", parts);
         }
     }
 }
