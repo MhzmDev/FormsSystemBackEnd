@@ -1,3 +1,6 @@
+﻿using DynamicForm.Models.Entities;
+using System.ComponentModel.DataAnnotations;
+
 namespace DynamicForm.Models.DTOs
 {
     public class LoginDto
@@ -13,7 +16,11 @@ namespace DynamicForm.Models.DTOs
         public string Password { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string? PhoneNumber { get; set; }
-        public string Role { get; set; } = "Employee";
+
+        [Required]
+        public string Role { get; set; } = string.Empty;
+
+        public string? Department { get; set; }
     }
 
     public class AuthResponseDto
@@ -31,8 +38,12 @@ namespace DynamicForm.Models.DTOs
         public string Username { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
+        public string? PhoneNumber { get; set; }
         public string Role { get; set; } = string.Empty;
+        public string? Department { get; set; } // ✅ NEW
+        public string? DepartmentAr { get; set; } // ✅ NEW - Arabic name
         public bool IsActive { get; set; }
+        public DateTime CreatedDate { get; set; }
     }
 
     public class RefreshTokenDto

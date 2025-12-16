@@ -32,6 +32,7 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.FullName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.PhoneNumber).HasMaxLength(20);
             entity.Property(e => e.Role).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Department).HasMaxLength(50); // NEW: Department field
 
             // Create unique indexes
             entity.HasIndex(e => e.Username).IsUnique();

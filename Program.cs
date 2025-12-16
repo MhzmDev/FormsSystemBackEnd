@@ -1,7 +1,9 @@
-﻿using DynamicForm.Data;
+﻿using DynamicForm.Authorization;
+using DynamicForm.Data;
 using DynamicForm.Filters;
 using DynamicForm.Middleware;
 using DynamicForm.Models.Configuration;
+using DynamicForm.Models.Entities;
 using DynamicForm.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -61,8 +63,25 @@ builder.Services.AddAuthentication(options =>
 
 // Add custom authorization handler
 builder.Services.AddSingleton<IAuthorizationMiddlewareResultHandler, CustomAuthorizationMiddlewareResultHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, DepartmentAuthorizationHandler>(); // ✅ NEW
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    // ✅ Role-based policies
+    options.AddPolicy("SuperAdminOnly", policy => policy.RequireRole(UserRoles.SuperAdmin));
+    options.AddPolicy("AdminOrAbove", policy => policy.RequireRole(UserRoles.SuperAdmin, UserRoles.Admin));
+    options.AddPolicy("EmployeeOrAbove", policy => policy.RequireRole(UserRoles.SuperAdmin, UserRoles.Admin, UserRoles.Employee));
+
+    // ✅ Department-based policies
+    options.AddPolicy("SalesOnly", policy =>
+        policy.Requirements.Add(new DepartmentRequirement(Departments.Sales)));
+
+    options.AddPolicy("MarketingOnly", policy =>
+        policy.Requirements.Add(new DepartmentRequirement(Departments.Marketing)));
+
+    options.AddPolicy("SalesOrMarketing", policy =>
+        policy.Requirements.Add(new DepartmentRequirement(Departments.Sales, Departments.Marketing)));
+});
 
 // Add services
 builder.Services.AddScoped<IFormService, FormService>();

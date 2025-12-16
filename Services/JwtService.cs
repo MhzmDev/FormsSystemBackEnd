@@ -1,4 +1,4 @@
-using DynamicForm.Models.Entities;
+﻿using DynamicForm.Models.Entities;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -29,7 +29,7 @@ namespace DynamicForm.Services
 
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-            var claims = new[]
+            var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                 new Claim(ClaimTypes.Name, user.Username),
@@ -38,6 +38,12 @@ namespace DynamicForm.Services
                 new Claim("FullName", user.FullName),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
+
+            // ✅ Add department claim if user has one
+            if (!string.IsNullOrEmpty(user.Department))
+            {
+                claims.Add(new Claim("Department", user.Department));
+            }
 
             var token = new JwtSecurityToken(
                 issuer: _configuration["Jwt:Issuer"],

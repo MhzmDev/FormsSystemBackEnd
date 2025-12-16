@@ -1,4 +1,4 @@
-using DynamicForm.Data;
+﻿using DynamicForm.Data;
 using DynamicForm.Models.DTOs;
 using DynamicForm.Models.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -66,6 +66,31 @@ namespace DynamicForm.Services
 
         public async Task<UserInfoDto?> RegisterAsync(RegisterDto registerDto)
         {
+            // ✅ Validate role
+            if (!UserRoles.IsValid(registerDto.Role))
+            {
+                throw new ArgumentException($"الدور غير صحيح. الأدوار المتاحة: {string.Join(", ", UserRoles.All)}");
+            }
+
+            // ✅ Validate department for Employees
+            if (registerDto.Role == UserRoles.Employee)
+            {
+                if (string.IsNullOrEmpty(registerDto.Department))
+                {
+                    throw new ArgumentException("القسم مطلوب للموظفين");
+                }
+
+                if (!Departments.IsValid(registerDto.Department))
+                {
+                    throw new ArgumentException($"القسم غير صحيح. الأقسام المتاحة: {string.Join(", ", Departments.All)}");
+                }
+            }
+            else
+            {
+                // ✅ SuperAdmin and Admin don't need department
+                registerDto.Department = null;
+            }
+
             // Check if username already exists
             if (await _context.Users.AnyAsync(u => u.Username == registerDto.Username))
             {
@@ -97,6 +122,7 @@ namespace DynamicForm.Services
                 FullName = registerDto.FullName,
                 PhoneNumber = registerDto.PhoneNumber,
                 Role = registerDto.Role,
+                Department = registerDto.Department,
                 IsActive = true,
                 IsDeleted = false,
                 CreatedDate = DateTime.UtcNow
@@ -382,8 +408,12 @@ namespace DynamicForm.Services
                 Username = user.Username,
                 Email = user.Email,
                 FullName = user.FullName,
+                PhoneNumber = user.PhoneNumber,
                 Role = user.Role,
-                IsActive = user.IsActive
+                Department = user.Department, // ✅ NEW
+                DepartmentAr = user.Department != null ? Departments.GetArabicName(user.Department) : null, // ✅ NEW
+                IsActive = user.IsActive,
+                CreatedDate = user.CreatedDate
             };
         }
     }

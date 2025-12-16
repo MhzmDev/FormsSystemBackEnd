@@ -81,8 +81,11 @@ namespace DynamicForm.Controllers
                     });
                 }
 
-                // Force role to Employee (only SuperAdmin can create accounts)
-                registerDto.Role = UserRoles.Employee;
+                // Force role to Employee if null or empty (only SuperAdmin can create accounts)
+                if (string.IsNullOrEmpty(registerDto.Role))
+                {
+                    registerDto.Role = UserRoles.Employee;
+                }
 
                 var result = await _userService.RegisterAsync(registerDto);
 
