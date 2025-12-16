@@ -86,7 +86,7 @@ namespace DynamicForm.Controllers
         ///     null = all submissions
         /// </param>
         /// <param name="sendEmail">Send CSV report via email to the currently logged-in user (optional, default: false)</param>
-        [AllowAnonymous]
+        //[AllowAnonymous]
         [HttpGet("service-duration-under-3-months-90Days")]
         [ProducesResponseType(typeof(ApiResponse<PagedResultSubmission<FormSubmissionSummaryDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
@@ -96,7 +96,7 @@ namespace DynamicForm.Controllers
             [FromQuery] int pageSize = 10,
             [FromQuery] DateTime? fromDate = null,
             [FromQuery] DateTime? toDate = null,
-            [FromQuery] bool? olderThan3Months = null,
+            [FromQuery] bool olderThan3Months = true,
             [FromQuery] bool? sendEmail = null)
         {
             try
@@ -137,17 +137,21 @@ namespace DynamicForm.Controllers
                     }
                 }
 
+                // If fromDate or toDate are provided, ignore olderThan3Months parameter
+                bool? effectiveOlderThan3Months = (fromDate.HasValue || toDate.HasValue) ? null : olderThan3Months;
+
                 var result = await _rejectionAnalyticsService.GetRejectedByServiceDuration90DaysAsync(
-                    page, pageSize, fromDate, toDate, olderThan3Months, sendEmail ?? false, recipientEmail);
+                    page, pageSize, fromDate, toDate, effectiveOlderThan3Months, sendEmail ?? false, recipientEmail);
 
                 // Dynamic message based on filter and email
-                var message = (olderThan3Months, sendEmail) switch
+                var message = (fromDate.HasValue || toDate.HasValue, effectiveOlderThan3Months, sendEmail) switch
                 {
-                    (true, true) => $"تم جلب الطلبات المرفوضة التي مضى عليها أكثر من 3 أشهر بنجاح وسيتم إرسال التقرير إلى {recipientEmail}",
-                    (false, true) => $"تم جلب الطلبات المرفوضة خلال آخر 3 أشهر بنجاح وسيتم إرسال التقرير إلى {recipientEmail}",
-                    (null, true) => $"تم جلب الطلبات المرفوضة بنجاح وسيتم إرسال التقرير إلى {recipientEmail}",
-                    (true, _) => "تم جلب الطلبات المرفوضة التي مضى عليها أكثر من 3 أشهر بنجاح",
-                    (false, _) => "تم جلب الطلبات المرفوضة خلال آخر 3 أشهر بنجاح",
+                    (true, _, true) => $"تم جلب الطلبات المرفوضة للفترة المحددة بنجاح وسيتم إرسال التقرير إلى {recipientEmail}",
+                    (true, _, _) => "تم جلب الطلبات المرفوضة للفترة المحددة بنجاح",
+                    (false, true, true) => $"تم جلب الطلبات المرفوضة لليوم الذي يسبق 3 أشهر بنجاح وسيتم إرسال التقرير إلى {recipientEmail}",
+                    (false, false, true) => $"تم جلب الطلبات المرفوضة خلال آخر 3 أشهر بنجاح وسيتم إرسال التقرير إلى {recipientEmail}",
+                    (false, true, _) => "تم جلب الطلبات المرفوضة لليوم الذي يسبق 3 أشهر بنجاح",
+                    (false, false, _) => "تم جلب الطلبات المرفوضة خلال آخر 3 أشهر بنجاح",
                     _ => "تم جلب الطلبات المرفوضة بسبب مدة الخدمة بنجاح"
                 };
 

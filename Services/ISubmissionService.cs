@@ -23,5 +23,9 @@ namespace DynamicForm.Services
             DateTime? fromDate, DateTime? toDate);
 
         Task<bool> ExportSubmissionsToCSVAndEmailAsync(string rejectionReason, DateTime? fromDate, DateTime? toDate, string recipientEmail);
+
+        // NEW: Overload that accepts pre-filtered submissions
+        Task<bool> ExportSubmissionsToCSVAndEmailAsync(List<FormSubmission> submissions, string reportTitle, string recipientEmail,
+            DateTime? fromDate = null, DateTime? toDate = null);
     }
 }

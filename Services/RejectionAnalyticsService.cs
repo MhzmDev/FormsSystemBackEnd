@@ -141,7 +141,7 @@ namespace DynamicForm.Services
             int pageSize,
             DateTime? fromDate,
             DateTime? toDate,
-            bool? olderThan90Days = null,
+            bool? olderThan3Months = null,
             bool sendEmail = false,
             string? recipientEmail = null)
         {
@@ -155,30 +155,39 @@ namespace DynamicForm.Services
                 .Where(s => s.RejectionReason == "عذراً، مدة الخدمة يجب أن تكون أكثر من 3 شهور")
                 .AsQueryable();
 
-            // Apply 90-day filter based on flag
-            if (olderThan90Days.HasValue)
+            // If fromDate or toDate are provided, use them and ignore olderThan3Months
+            if (fromDate.HasValue || toDate.HasValue)
             {
-                if (olderThan90Days.Value)
+                if (fromDate.HasValue)
                 {
-                    // Get only submissions older than 3 months
-                    query = query.Where(s => s.SubmittedDate <= DateTime.UtcNow.AddMonths(-3));
+                    query = query.Where(s => s.SubmittedDate >= fromDate.Value);
+                }
+
+                if (toDate.HasValue)
+                {
+                    query = query.Where(s => s.SubmittedDate <= toDate.Value);
+                }
+            }
+            // Otherwise, apply olderThan3Months logic
+            else if (olderThan3Months.HasValue)
+            {
+                var todayDate = DateTime.Now.Date;
+                var exactDayBeforeThreeMonths = todayDate.AddMonths(-3).AddDays(-1);
+
+                if (olderThan3Months.Value)
+                {
+                    // Get submissions from ONLY the day before 3 months ago (e.g., 14 September 2025 if today is 15 December 2025)
+                    var startOfDay = exactDayBeforeThreeMonths.Date;
+                    var endOfDay = startOfDay.AddDays(1).AddTicks(-1);
+
+                    query = query.Where(s => s.SubmittedDate >= startOfDay && s.SubmittedDate <= endOfDay);
                 }
                 else
                 {
-                    // Get only submissions within last 3 months
-                    query = query.Where(s => s.SubmittedDate > DateTime.UtcNow.AddMonths(-3));
+                    // Get submissions within the last 3 months (from 3 months ago until today)
+                    var threeMonthsAgo = todayDate.AddMonths(-3);
+                    query = query.Where(s => s.SubmittedDate >= threeMonthsAgo && s.SubmittedDate <= todayDate);
                 }
-            }
-
-            // Apply date filters
-            if (fromDate.HasValue)
-            {
-                query = query.Where(s => s.SubmittedDate >= fromDate.Value);
-            }
-
-            if (toDate.HasValue)
-            {
-                query = query.Where(s => s.SubmittedDate <= toDate.Value);
             }
 
             // Get total count
@@ -215,14 +224,33 @@ namespace DynamicForm.Services
                 Values = _submissionService.CreateSubmissionValueSummary(submission.FormSubmissionValues)
             });
 
-            // Send email if requested - Use existing SubmissionService method
+            // Send email if requested - using new overload Email Service Method that accepts list of DTOs
             if (sendEmail && !string.IsNullOrWhiteSpace(recipientEmail))
             {
-                await _submissionService.ExportSubmissionsToCSVAndEmailAsync(
-                    "عذراً، مدة الخدمة يجب أن تكون أكثر من 3 شهور",
-                    fromDate,
-                    toDate,
-                    recipientEmail);
+                // Get ALL submissions (not just paginated) for the email report
+                var allSubmissionsForEmail = await query
+                    .OrderByDescending(s => s.SubmittedDate)
+                    .ToListAsync();
+
+                // Determine report title based on filtering
+                var reportTitle = (fromDate.HasValue, toDate.HasValue, olderThan3Months) switch
+                {
+                    (true, true, _) => $"مدة الخدمة أقل من 3 أشهر (من {fromDate:yyyy-MM-dd} إلى {toDate:yyyy-MM-dd})",
+                    (true, false, _) => $"مدة الخدمة أقل من 3 أشهر (من {fromDate:yyyy-MM-dd})",
+                    (false, true, _) => $"مدة الخدمة أقل من 3 أشهر (حتى {toDate:yyyy-MM-dd})",
+                    (false, false, true) => "مدة الخدمة أقل من 3 أشهر (اليوم الذي يسبق 3 أشهر)",
+                    (false, false, false) => "مدة الخدمة أقل من 3 أشهر (آخر 3 أشهر)",
+                    _ => "مدة الخدمة أقل من 3 أشهر"
+                };
+
+                // Send email in background
+                _ = Task.Run(async () =>
+                    await _submissionService.ExportSubmissionsToCSVAndEmailAsync(
+                        allSubmissionsForEmail,
+                        reportTitle,
+                        recipientEmail,
+                        fromDate,
+                        toDate));
             }
 
             return new PagedResultSubmission<FormSubmissionSummaryDto>

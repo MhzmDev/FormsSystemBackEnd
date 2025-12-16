@@ -173,6 +173,69 @@ namespace DynamicForm.Services
             }
         }
 
+        // NEW: Overloaded method that accepts pre-filtered submissions
+        public async Task<bool> ExportSubmissionsToCSVAndEmailAsync(
+            List<FormSubmission> submissions,
+            string reportTitle,
+            string recipientEmail,
+            DateTime? fromDate = null,
+            DateTime? toDate = null)
+        {
+            try
+            {
+                _logger.LogInformation("Starting CSV export for {Count} pre-filtered submissions: {ReportTitle}",
+                    submissions.Count, reportTitle);
+
+                if (!submissions.Any())
+                {
+                    _logger.LogWarning("No submissions provided for export");
+                    return false;
+                }
+
+                // Generate CSV content
+                var csvContent = GenerateCSVContent(submissions);
+
+                // Convert to byte array
+                var csvBytes = Encoding.UTF8.GetBytes(csvContent);
+
+                // Prepare email details
+                var subject = $"تقرير الطلبات المرفوضة - {reportTitle}";
+
+                var body = $@"
+            <html dir='rtl'>
+            <body style='font-family: Arial, sans-serif;'>
+                <h2>تقرير الطلبات المرفوضة</h2>
+                <p>السبب: <strong>{reportTitle}</strong></p>
+                <p>عدد الطلبات: <strong>{submissions.Count}</strong></p>
+                <p>التاريخ من: {fromDate?.ToString("yyyy-MM-dd") ?? "غير محدد"}</p>
+                <p>التاريخ إلى: {toDate?.ToString("yyyy-MM-dd") ?? "غير محدد"}</p>
+                <p>يرجى الاطلاع على الملف المرفق للحصول على التفاصيل الكاملة.</p>
+            </body>
+            </html>
+        ";
+
+                var fileName = $"rejected_submissions_{SanitizeFileName(reportTitle)}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv";
+
+                // Send email with attachment
+                await _emailService.SendEmailWithAttachmentAsync(recipientEmail, subject, body, csvBytes, fileName, "text/csv");
+
+                _logger.LogInformation("CSV export email sent successfully to {Email}", recipientEmail);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error exporting submissions to CSV and sending email");
+                return false;
+            }
+        }
+
+        // Helper method to sanitize file names
+        private string SanitizeFileName(string fileName)
+        {
+            var invalidChars = Path.GetInvalidFileNameChars();
+            return string.Join("_", fileName.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries)).TrimEnd('.');
+        }
         public async Task<PagedResultSubmission<FormSubmissionSummaryDto>> GetAllSubmissionsAsync(int page, int pageSize, DateTime? fromDate,
             DateTime? toDate, string? status, bool? isActive)
         {
