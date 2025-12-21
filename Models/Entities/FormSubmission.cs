@@ -8,7 +8,7 @@ namespace DynamicForm.Models.Entities
         public int SubmissionId { get; set; }
 
         public int FormId { get; set; }
-        public DateTime SubmittedDate { get; set; } = DateTime.UtcNow;
+        public DateTime SubmittedDate { get; set; } = DateTime.Now;
 
         [StringLength(100)]
         public string? SubmittedBy { get; set; }

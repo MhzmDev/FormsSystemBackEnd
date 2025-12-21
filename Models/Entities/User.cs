@@ -33,7 +33,7 @@ public class User
 
     public bool IsActive { get; set; } = true;
     public bool IsDeleted { get; set; } = false;
-    public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedDate { get; set; } = DateTime.Now;
     public DateTime? ModifiedDate { get; set; }
     public DateTime? LastLoginDate { get; set; }
     public string? RefreshToken { get; set; }

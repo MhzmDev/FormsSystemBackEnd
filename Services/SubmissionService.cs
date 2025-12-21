@@ -52,7 +52,7 @@ namespace DynamicForm.Services
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
             // Calculate today's submissions count
-            var today = DateTime.UtcNow.Date;
+            var today = DateTime.Now.Date;
 
             var todaySubmissionsCount = await query
                 .Where(s => s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
@@ -157,7 +157,7 @@ namespace DynamicForm.Services
                     </html>
                 ";
 
-                var fileName = $"rejected_submissions_{rejectionReason}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv";
+                var fileName = $"rejected_submissions_{rejectionReason}_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
 
                 // Send email with attachment
                 await _emailService.SendEmailWithAttachmentAsync(recipientEmail, subject, body, csvBytes, fileName, "text/csv");
@@ -174,12 +174,8 @@ namespace DynamicForm.Services
         }
 
         // NEW: Overloaded method that accepts pre-filtered submissions
-        public async Task<bool> ExportSubmissionsToCSVAndEmailAsync(
-            List<FormSubmission> submissions,
-            string reportTitle,
-            string recipientEmail,
-            DateTime? fromDate = null,
-            DateTime? toDate = null)
+        public async Task<bool> ExportSubmissionsToCSVAndEmailAsync(List<FormSubmission> submissions, string reportTitle, string recipientEmail,
+            DateTime? fromDate = null, DateTime? toDate = null)
         {
             try
             {
@@ -215,7 +211,7 @@ namespace DynamicForm.Services
             </html>
         ";
 
-                var fileName = $"rejected_submissions_{SanitizeFileName(reportTitle)}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv";
+                var fileName = $"rejected_submissions_{SanitizeFileName(reportTitle)}_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
 
                 // Send email with attachment
                 await _emailService.SendEmailWithAttachmentAsync(recipientEmail, subject, body, csvBytes, fileName, "text/csv");
@@ -266,7 +262,7 @@ namespace DynamicForm.Services
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
             // Calculate today's submissions count
-            var today = DateTime.UtcNow.Date;
+            var today = DateTime.Now.Date;
 
             var todaySubmissionsCount = await _context.FormSubmissions
                 .Where(s => s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
@@ -376,7 +372,7 @@ namespace DynamicForm.Services
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
             // Calculate today's submissions count for this specific form
-            var today = DateTime.UtcNow.Date;
+            var today = DateTime.Now.Date;
 
             var todaySubmissionsCount = await _context.FormSubmissions
                 .Where(s => s.FormId == formId && s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
@@ -487,7 +483,7 @@ namespace DynamicForm.Services
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
             // Calculate today's submissions count for active form only
-            var today = DateTime.UtcNow.Date;
+            var today = DateTime.Now.Date;
 
             var todaySubmissionsCount = await _context.FormSubmissions
                 .Include(s => s.Form)

@@ -40,7 +40,7 @@ namespace DynamicForm.Services
             }
 
             // Update last login date
-            user.LastLoginDate = DateTime.UtcNow;
+            user.LastLoginDate = DateTime.Now;
 
             // Generate tokens
             var accessToken = _jwtService.GenerateAccessToken(user);
@@ -125,7 +125,7 @@ namespace DynamicForm.Services
                 Department = registerDto.Department,
                 IsActive = true,
                 IsDeleted = false,
-                CreatedDate = DateTime.UtcNow
+                CreatedDate = DateTime.Now
             };
 
             _context.Users.Add(user);
@@ -173,7 +173,7 @@ namespace DynamicForm.Services
                 return null;
             }
 
-            if (user.RefreshTokenExpiryTime <= DateTime.UtcNow)
+            if (user.RefreshTokenExpiryTime <= DateTime.Now)
             {
                 _logger.LogWarning("Refresh token expired for user {Username}", username);
 
@@ -280,7 +280,7 @@ namespace DynamicForm.Services
             }
 
             user.IsActive = isActive;
-            user.ModifiedDate = DateTime.UtcNow;
+            user.ModifiedDate = DateTime.Now;
 
             // Revoke tokens if user is being deactivated
             if (!isActive)
@@ -316,7 +316,7 @@ namespace DynamicForm.Services
 
             user.IsDeleted = true;
             user.IsActive = false;
-            user.ModifiedDate = DateTime.UtcNow;
+            user.ModifiedDate = DateTime.Now;
             user.RefreshToken = null;
             user.RefreshTokenExpiryTime = null;
 
@@ -347,7 +347,7 @@ namespace DynamicForm.Services
             }
 
             user.PasswordHash = HashPassword(changePasswordDto.NewPassword);
-            user.ModifiedDate = DateTime.UtcNow;
+            user.ModifiedDate = DateTime.Now;
 
             // Revoke all refresh tokens to force re-login
             user.RefreshToken = null;
@@ -371,7 +371,7 @@ namespace DynamicForm.Services
             }
 
             user.PasswordHash = HashPassword(newPassword);
-            user.ModifiedDate = DateTime.UtcNow;
+            user.ModifiedDate = DateTime.Now;
 
             // Revoke all refresh tokens to force re-login
             user.RefreshToken = null;

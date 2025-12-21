@@ -31,7 +31,7 @@ public class LoadTestController : ControllerBase
         var successCount = 0;
         var errorCount = 0;
         var ageRejectedCount = 0;
-        var startTime = DateTime.UtcNow;
+        var startTime = DateTime.Now;
 
         _logger.LogInformation("Starting load test: {TotalRequests} requests over {Duration} minutes. Include age errors: {IncludeAgeErrors}",
             totalRequests, durationMinutes, includeAgeErrors);
@@ -55,7 +55,7 @@ public class LoadTestController : ControllerBase
                         SubmissionId = submission.SubmissionId,
                         RejectionReason = submission.RejectionReason,
                         ApprovalStatus = submission.Status,
-                        Timestamp = DateTime.UtcNow
+                        Timestamp = DateTime.Now
                     });
 
                     _logger.LogInformation("Request {RequestNumber}/{Total} - Age validation error saved to DB (ID: {SubmissionId})",
@@ -71,7 +71,7 @@ public class LoadTestController : ControllerBase
                         Status = "Success",
                         SubmissionId = submission.SubmissionId,
                         ApprovalStatus = submission.Status,
-                        Timestamp = DateTime.UtcNow
+                        Timestamp = DateTime.Now
                     });
 
                     _logger.LogInformation("Request {RequestNumber}/{Total} completed successfully (Status: {Status})",
@@ -87,7 +87,7 @@ public class LoadTestController : ControllerBase
                     RequestNumber = i,
                     Status = "Error",
                     Error = ex.Message,
-                    Timestamp = DateTime.UtcNow
+                    Timestamp = DateTime.Now
                 });
 
                 _logger.LogError(ex, "Request {RequestNumber}/{Total} failed", i, totalRequests);
@@ -100,7 +100,7 @@ public class LoadTestController : ControllerBase
             }
         }
 
-        var endTime = DateTime.UtcNow;
+        var endTime = DateTime.Now;
         var duration = endTime - startTime;
 
         return Ok(new

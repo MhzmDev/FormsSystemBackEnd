@@ -30,7 +30,7 @@ namespace DynamicForm.Models.Entities
         [StringLength(2000)]
         public string? OptionsAtSubmission { get; set; }
 
-        public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedDate { get; set; } = DateTime.Now;
 
         // Navigation properties
         public FormSubmission FormSubmission { get; set; } = null!;

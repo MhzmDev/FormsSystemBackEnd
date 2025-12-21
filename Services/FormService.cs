@@ -150,7 +150,7 @@ namespace DynamicForm.Services
                 foreach (var existingForm in existingForms)
                 {
                     existingForm.IsActive = false;
-                    existingForm.ModifiedDate = DateTime.UtcNow;
+                    existingForm.ModifiedDate = DateTime.Now;
                 }
 
                 // Create new active form
@@ -158,7 +158,7 @@ namespace DynamicForm.Services
                 {
                     Name = createFormDto.Name,
                     Description = createFormDto.Description,
-                    CreatedDate = DateTime.UtcNow,
+                    CreatedDate = DateTime.Now,
                     CreatedBy = "المستخدم",
                     IsActive = true
                 };
@@ -225,7 +225,7 @@ namespace DynamicForm.Services
 
                 form.Name = updateFormDto.Name;
                 form.Description = updateFormDto.Description;
-                form.ModifiedDate = DateTime.UtcNow;
+                form.ModifiedDate = DateTime.Now;
 
                 var existingFields = form.FormFields.ToList();
                 var updateFieldNames = updateFormDto.Fields.Select(f => f.FieldName).ToHashSet();
@@ -380,7 +380,7 @@ namespace DynamicForm.Services
             }
 
             form.IsActive = false;
-            form.ModifiedDate = DateTime.UtcNow;
+            form.ModifiedDate = DateTime.Now;
             await _context.SaveChangesAsync();
 
             return true;
@@ -433,7 +433,7 @@ namespace DynamicForm.Services
                 foreach (var existingForm in existingForms)
                 {
                     existingForm.IsActive = false;
-                    existingForm.ModifiedDate = DateTime.UtcNow;
+                    existingForm.ModifiedDate = DateTime.Now;
                 }
 
                 // Activate the specified form
@@ -445,7 +445,7 @@ namespace DynamicForm.Services
                 }
 
                 form.IsActive = true;
-                form.ModifiedDate = DateTime.UtcNow;
+                form.ModifiedDate = DateTime.Now;
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
@@ -525,7 +525,7 @@ namespace DynamicForm.Services
             {
                 FormId = formId,
                 SubmittedBy = submitFormDto.SubmittedBy,
-                SubmittedDate = DateTime.UtcNow,
+                SubmittedDate = DateTime.Now,
                 Status = FormConstants.SubmissionStatus.UnderReview
             };
 
@@ -550,7 +550,7 @@ namespace DynamicForm.Services
                     FieldTypeAtSubmission = field.FieldType,
                     LabelAtSubmission = field.Label,
                     OptionsAtSubmission = field.Options,
-                    CreatedDate = DateTime.UtcNow
+                    CreatedDate = DateTime.Now
                 })
                 .ToList();
 
@@ -949,7 +949,7 @@ namespace DynamicForm.Services
             // Fast path: Check memory cache first
             if (_cache.TryGetValue<DateTime>(cacheKey, out var lastSubmissionFromCache))
             {
-                var timeRemaining = TimeSpan.FromHours(24) - (DateTime.UtcNow - lastSubmissionFromCache);
+                var timeRemaining = TimeSpan.FromHours(24) - (DateTime.Now - lastSubmissionFromCache);
 
                 if (timeRemaining > TimeSpan.Zero)
                 {
@@ -985,7 +985,7 @@ namespace DynamicForm.Services
 
             if (lastSubmission != default)
             {
-                var timeSinceLastSubmission = DateTime.UtcNow - lastSubmission;
+                var timeSinceLastSubmission = DateTime.Now - lastSubmission;
 
                 if (timeSinceLastSubmission < TimeSpan.FromHours(24))
                 {
@@ -1012,7 +1012,7 @@ namespace DynamicForm.Services
         private void UpdateSubmissionThrottleCache(string phoneNumber, int formId)
         {
             var cacheKey = $"submission_throttle_{phoneNumber}_{formId}";
-            _cache.Set(cacheKey, DateTime.UtcNow, TimeSpan.FromHours(24));
+            _cache.Set(cacheKey, DateTime.Now, TimeSpan.FromHours(24));
 
             _logger.LogInformation(
                 "Updated submission throttle cache for phone {Phone} on form {FormId}",

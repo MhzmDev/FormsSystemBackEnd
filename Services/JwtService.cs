@@ -104,12 +104,12 @@ namespace DynamicForm.Services
         {
             var expiryMinutes = _configuration.GetValue<int>("Jwt:AccessTokenExpiryMinutes", 60);
 
-            return DateTime.UtcNow.AddMinutes(expiryMinutes);
+            return DateTime.Now.AddMinutes(expiryMinutes);
         }
 
         public DateTime GetRefreshTokenExpiry()
         {
-            return DateTime.UtcNow.AddDays(_refreshTokenExpirationDays); // 3 days as requested
+            return DateTime.Now.AddDays(_refreshTokenExpirationDays); // 3 days as requested
         }
     }
 }

@@ -53,7 +53,7 @@ namespace DynamicForm.Services
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
             // Calculate today's count
-            var today = DateTime.UtcNow.Date;
+            var today = DateTime.Now.Date;
 
             var todayCount = await query
                 .Where(s => s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
@@ -195,7 +195,7 @@ namespace DynamicForm.Services
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
             // Calculate today's count
-            var today = DateTime.UtcNow.Date;
+            var today = DateTime.Now.Date;
 
             var todayCount = await query
                 .Where(s => s.SubmittedDate >= today && s.SubmittedDate < today.AddDays(1))
