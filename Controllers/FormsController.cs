@@ -1,7 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using DynamicForm.Models.DTOs;
-using DynamicForm.Services;
 using Swashbuckle.AspNetCore.Annotations;
+using Microsoft.AspNetCore.Authorization;
+using DynamicForm.BLL.Contracts;
+using DynamicForm.DAL.Models.Entities;
+using DynamicForm.BLL.DTOs.General;
+using DynamicForm.BLL.DTOs.Form;
+using DynamicForm.BLL.DTOs.Submissions;
 
 namespace DynamicForm.Controllers
 {
@@ -9,6 +13,7 @@ namespace DynamicForm.Controllers
     [Route("api/[controller]")]
     [Produces("application/json")]
     [Tags("Forms Management")]
+    [Authorize] // ✅ Require authentication for all endpoints
     public class FormsController : ControllerBase
     {
         private readonly IFormService _formService;
@@ -19,13 +24,15 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        ///     Get currently active form
+        ///     Get active form (only one)
         /// </summary>
-        [HttpGet("GetActiveForm")]
+        /// <returns></returns>
+        [HttpGet("ActiveForm")]
+        [AllowAnonymous] // ✅ Allow public access to active form
+        [ProducesDefaultResponseType(typeof(ApiResponse<PagedResult<FormDto>>))]
         [ProducesResponseType(typeof(ApiResponse<FormDto>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<FormDto>> GetActiveForm()
+        public async Task<ActionResult<ApiResponse<FormDto>>> GetActiveForm()
         {
             try
             {
@@ -33,10 +40,11 @@ namespace DynamicForm.Controllers
 
                 if (form == null)
                 {
-                    return NotFound(new ApiResponse<object>
+                    return Ok(new ApiResponse<FormDto>
                     {
-                        Success = false,
-                        Message = "لا يوجد نموذج نشط حالياً"
+                        Success = true,
+                        Message = "لا يوجد نموذج نشط حالياً",
+                        Data = null
                     });
                 }
 
@@ -46,14 +54,12 @@ namespace DynamicForm.Controllers
                     Message = "تم جلب النموذج النشط بنجاح",
                     Data = form
                 });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
-                return StatusCode(500, new ApiResponse<object>
+                return StatusCode(500, new ApiResponse<FormDto>
                 {
                     Success = false,
-                    Message = "حدث خطأ في النظام",
-                    Error = ex.Message
+                    Message = $"حدث خطأ: {ex.Message}"
                 });
             }
         }
@@ -61,25 +67,50 @@ namespace DynamicForm.Controllers
         /// <summary>
         ///     Get all forms
         /// </summary>
-        /// <response code="200">Returns the list of forms - إرجاع قائمة النماذج</response>
-        /// <response code="500">Server error - خطأ في الخادم</response>
-        [HttpGet("GetAllForms")]
+        /// <param name="isActive">Filter by active status (optional). if empty, all forms will be returned</param>
+        /// <param name="pageIndex">Page index (default is 1)</param>
+        /// <param name="pageSize">Page size (default is 10)</param>
+        /// <response code="200">Returns the list of forms </response>
+        /// <response code="500">Server error </response>
+        [HttpGet]
         [ProducesResponseType(typeof(ApiResponse<IEnumerable<FormDto>>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<IEnumerable<FormDto>>> GetAllForms()
+        public async Task<ActionResult<ApiResponse<PagedResult<FormDto>>>> GetAllForms([FromQuery] bool? isActive = null,
+            [FromQuery] int pageIndex = 1, [FromQuery] int pageSize = 10)
         {
             try
             {
-                var forms = await _formService.GetAllFormsAsync();
+                if (pageIndex < 1)
+                {
+                    return BadRequest(new ApiResponse<PagedResult<FormDto>>
+                    {
+                        Success = false,
+                        Message = "رقم الصفحه يجب ان يكون 1 واقل من 50"
+                    });
+                }
 
-                return Ok(new ApiResponse<IEnumerable<FormDto>>
+                if (pageSize < 1 || pageSize > 50)
+                {
+                    return BadRequest(new ApiResponse<PagedResult<FormDto>>
+                    {
+                        Success = false,
+                        Message = "حجم الصفحه يجب ان يكون بين 1 و 50"
+                    });
+                }
+
+                var forms = await _formService.GetAllFormsAsync(pageIndex, pageSize, isActive);
+
+                var message = isActive.HasValue
+                    ? (isActive.Value ? "تم جلب النماذج النشطة بنجاح" : "تم جلب النماذج غير النشطة بنجاح")
+                    : "تم جلب جميع النماذج بنجاح";
+
+                return Ok(new ApiResponse<PagedResult<FormDto>>
                 {
                     Success = true,
-                    Message = "تم جلب النماذج بنجاح",
+                    Message = message,
                     Data = forms
                 });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<object>
                 {
@@ -94,7 +125,10 @@ namespace DynamicForm.Controllers
         ///     Get specific form by ID
         /// </summary>
         /// <param name="id">Form ID </param>
-        [HttpGet("GetFormByID/{id}")]
+        /// <response code="200">Returns the form details - إرجاع تفاصيل النموذج</response>
+        /// <response code="404">Form not found - النموذج غير موجود</response>
+        /// <response code="500">Server error - خطأ في الخادم</response>
+        [HttpGet("{id}")]
         [ProducesResponseType(typeof(ApiResponse<FormDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
@@ -119,8 +153,7 @@ namespace DynamicForm.Controllers
                     Message = "تم جلب النموذج بنجاح",
                     Data = form
                 });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<object>
                 {
@@ -132,11 +165,15 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        ///     Create new form
+        ///     Create a New Form
         /// </summary>
-        /// <param name="createFormDto">Form creation data - بيانات إنشاء النموذج</param>
-        [HttpPost("CreateNewForm")]
-        [ProducesResponseType(typeof(ApiResponse<FormDto>), StatusCodes.Status201Created)]
+        /// <param name="createFormDto">Form submission data - بيانات إرسال النموذج</param>
+        /// <response code="201">Form submitted successfully - تم إرسال النموذج بنجاح</response>
+        /// <response code="400">Validation error or missing required fields - خطأ في التحقق أو حقول مطلوبة مفقودة</response>
+        /// <response code="404">Form not found - النموذج غير موجود</response>
+        /// <response code="500">Server error - خطأ في الخادم</response>
+        [HttpPost]
+        [ProducesResponseType(typeof(ApiResponse<FormSubmissionResponseDto>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
         public async Task<ActionResult<FormDto>> CreateForm([FromBody] CreateFormDto createFormDto)
@@ -159,11 +196,10 @@ namespace DynamicForm.Controllers
                     new ApiResponse<FormDto>
                     {
                         Success = true,
-                        Message = "تم إنشاء النموذج بنجاح. تم إلغاء تفعيل النماذج السابقة.",
+                        Message = "تم إنشاء النموذج بنجاح",
                         Data = form
                     });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<object>
                 {
@@ -177,12 +213,7 @@ namespace DynamicForm.Controllers
         /// <summary>
         ///     Update existing form
         /// </summary>
-        /// <param name="id">Form ID to update - معرف النموذج للتحديث</param>
-        /// <param name="updateFormDto">Form update data - بيانات تحديث النموذج</param>
-        [HttpPut("UpdateForm/{id}")]
-        [ProducesResponseType(typeof(ApiResponse<FormDto>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+        [HttpPut("{id}")]
         public async Task<ActionResult<FormDto>> UpdateForm(int id, [FromBody] UpdateFormDto updateFormDto)
         {
             try
@@ -211,11 +242,10 @@ namespace DynamicForm.Controllers
                 return Ok(new ApiResponse<FormDto>
                 {
                     Success = true,
-                    Message = "تم تحديث النموذج بنجاح. الحقول الإلزامية لا يمكن تعديلها.",
+                    Message = "تم تحديث النموذج بنجاح",
                     Data = form
                 });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<object>
                 {
@@ -227,10 +257,49 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        ///     Delete form (soft delete)
+        ///     Activate a form by Id (set a form as active, will deactivate others)
         /// </summary>
-        /// <param name="id">Form ID to delete</param>
-        [HttpDelete("DeleteForm/{id}")]
+        /// <param name="id">Form Id</param>
+        [HttpPost("{id}/activate")]
+        [ProducesResponseType(typeof(ApiResponse<FormDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+        public async Task<ActionResult<ApiResponse<FormDto>>> ActivateForm(int id)
+        {
+            try
+            {
+                var form = await _formService.ActivateFormAsync(id);
+
+                if (form == null)
+                {
+                    return NotFound(new ApiResponse<FormDto>
+                    {
+                        Success = false,
+                        Message = "النموذج غير موجود"
+                    });
+                }
+
+                return Ok(new ApiResponse<FormDto>
+                {
+                    Success = true,
+                    Message = "تم تفعيل النموذج بنجاح",
+                    Data = form
+                });
+            } catch (Exception ex)
+            {
+                return StatusCode(500, new ApiResponse<FormDto>
+                {
+                    Success = false,
+                    Message = $"حدث خطأ: {ex.Message}"
+                });
+            }
+        }
+
+        /// <summary>
+        ///     Delete form by Form Id (soft delete)
+        /// </summary>
+        /// <param name="id">Form Id</param>
+        [HttpDelete("{id}")]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
@@ -254,8 +323,7 @@ namespace DynamicForm.Controllers
                     Success = true,
                     Message = "تم حذف النموذج بنجاح"
                 });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<object>
                 {
@@ -269,9 +337,10 @@ namespace DynamicForm.Controllers
         /// <summary>
         ///     Submit form data
         /// </summary>
-        /// <param name="id">Form ID to submit data to</param>
-        /// <param name="submitFormDto">Form submission data </param>
-        [HttpPost("SubmitForm/{id}")]
+        /// <param name="id">Form Id</param>
+        /// <param name="submitFormDto">Form submission data</param>
+        [HttpPost("{id}/submit")]
+        [AllowAnonymous] // ✅ Allow public form submission
         [ProducesResponseType(typeof(ApiResponse<FormSubmissionResponseDto>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
@@ -288,16 +357,14 @@ namespace DynamicForm.Controllers
                         Message = "تم إرسال البيانات بنجاح",
                         Data = submission
                     });
-            }
-            catch (ArgumentException ex)
+            } catch (ArgumentException ex)
             {
                 return BadRequest(new ApiResponse<object>
                 {
                     Success = false,
                     Message = ex.Message
                 });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<object>
                 {
@@ -309,200 +376,36 @@ namespace DynamicForm.Controllers
         }
 
         /// <summary>
-        ///     Activate a specific form (deactivates all others)
+        ///     Submit form data (Test endpoint without throttling)
         /// </summary>
-        /// <param name="id">Form ID to activate</param>
-        [HttpPut("activateForm/{id}")]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult> ActivateForm(int id)
-        {
-            try
-            {
-                var result = await _formService.ActivateFormAsync(id);
-
-                if (!result)
-                {
-                    return NotFound(new ApiResponse<object>
-                    {
-                        Success = false,
-                        Message = "النموذج غير موجود"
-                    });
-                }
-
-                return Ok(new ApiResponse<object>
-                {
-                    Success = true,
-                    Message = "تم تفعيل النموذج بنجاح. تم إلغاء تفعيل النماذج الأخرى."
-                });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new ApiResponse<object>
-                {
-                    Success = false,
-                    Message = "حدث خطأ في النظام",
-                    Error = ex.Message
-                });
-            }
-        }
-
-        /// <summary>
-        ///     Update a specific form field (custom fields only)
-        /// </summary>
-        /// <param name="formId">Form ID</param>
-        /// <param name="fieldId">Field ID to update</param>
-        /// <param name="updateFieldDto">Field update data</param>
-        [HttpPut("updateForm/{formId}/fields/{fieldId}")]
-        [ProducesResponseType(typeof(ApiResponse<FormFieldDto>), StatusCodes.Status200OK)]
+        /// <param name="id">Form Id</param>
+        /// <param name="submitFormDto">Form submission data</param>
+        [HttpPost("{id}/submitTest")]
+        [Authorize(Roles = UserRoles.SuperAdmin)] // ✅ Allow public test submission
+        [ProducesResponseType(typeof(ApiResponse<FormSubmissionResponseDto>), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<FormFieldDto>> UpdateFormField(int formId, int fieldId, [FromBody] UpdateFormFieldDto updateFieldDto)
+        public async Task<ActionResult<FormSubmissionResponseDto>> SubmitFormTest(int id, [FromBody] SubmitFormDto submitFormDto)
         {
             try
             {
-                if (!ModelState.IsValid)
-                {
-                    return BadRequest(new ApiResponse<object>
-                    {
-                        Success = false,
-                        Message = "البيانات المدخلة غير صحيحة",
-                        Errors = ModelState
-                    });
-                }
+                var submission = await _formService.SubmitFormTestAsync(id, submitFormDto);
 
-                var field = await _formService.UpdateFormFieldAsync(formId, fieldId, updateFieldDto);
-
-                if (field == null)
-                {
-                    return NotFound(new ApiResponse<object>
-                    {
-                        Success = false,
-                        Message = "النموذج أو الحقل غير موجود"
-                    });
-                }
-
-                return Ok(new ApiResponse<FormFieldDto>
-                {
-                    Success = true,
-                    Message = "تم تحديث الحقل بنجاح",
-                    Data = field
-                });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new ApiResponse<object>
-                {
-                    Success = false,
-                    Message = ex.Message
-                });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new ApiResponse<object>
-                {
-                    Success = false,
-                    Message = "حدث خطأ في النظام",
-                    Error = ex.Message
-                });
-            }
-        }
-
-        /// <summary>
-        ///     Delete a specific form field (custom fields only)
-        /// </summary>
-        /// <param name="formId">Form ID</param>
-        /// <param name="fieldId">Field ID to delete</param>
-        [HttpDelete("deleteForm/{formId}/fields/{fieldId}")]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult> DeleteFormField(int formId, int fieldId)
-        {
-            try
-            {
-                var result = await _formService.DeleteFormFieldAsync(formId, fieldId);
-
-                if (!result)
-                {
-                    return NotFound(new ApiResponse<object>
-                    {
-                        Success = false,
-                        Message = "النموذج أو الحقل غير موجود"
-                    });
-                }
-
-                return Ok(new ApiResponse<object>
-                {
-                    Success = true,
-                    Message = "تم حذف الحقل بنجاح"
-                });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new ApiResponse<object>
-                {
-                    Success = false,
-                    Message = ex.Message
-                });
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, new ApiResponse<object>
-                {
-                    Success = false,
-                    Message = "حدث خطأ في النظام",
-                    Error = ex.Message
-                });
-            }
-        }
-
-        /// <summary>
-        ///     Add a new field to an existing form
-        /// </summary>
-        /// <param name="formId">Form ID</param>
-        /// <param name="createFieldDto">Field creation data</param>
-        [HttpPost("addFormField/{formId}/fields")]
-        [ProducesResponseType(typeof(ApiResponse<FormFieldDto>), StatusCodes.Status201Created)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
-        public async Task<ActionResult<FormFieldDto>> AddFormField(int formId, [FromBody] CreateFormFieldDto createFieldDto)
-        {
-            try
-            {
-                if (!ModelState.IsValid)
-                {
-                    return BadRequest(new ApiResponse<object>
-                    {
-                        Success = false,
-                        Message = "البيانات المدخلة غير صحيحة",
-                        Errors = ModelState
-                    });
-                }
-
-                var field = await _formService.AddFormFieldAsync(formId, createFieldDto);
-
-                return CreatedAtAction(nameof(GetForm), new { id = formId },
-                    new ApiResponse<FormFieldDto>
+                return CreatedAtRoute("GetSubmissionById", new { id = submission.SubmissionId },
+                    new ApiResponse<FormSubmissionResponseDto>
                     {
                         Success = true,
-                        Message = "تم إضافة الحقل بنجاح",
-                        Data = field
+                        Message = "تم إرسال البيانات بنجاح",
+                        Data = submission
                     });
-            }
-            catch (ArgumentException ex)
+            } catch (ArgumentException ex)
             {
                 return BadRequest(new ApiResponse<object>
                 {
                     Success = false,
                     Message = ex.Message
                 });
-            }
-            catch (Exception ex)
+            } catch (Exception ex)
             {
                 return StatusCode(500, new ApiResponse<object>
                 {
@@ -512,7 +415,5 @@ namespace DynamicForm.Controllers
                 });
             }
         }
-
-        
     }
 }
