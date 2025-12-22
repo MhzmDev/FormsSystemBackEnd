@@ -1,7 +1,8 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using DynamicForm.Models.DTOs;
-using DynamicForm.Models.Entities;
+using DynamicForm.DAL.Models.Entities;
+using DynamicForm.BLL.DTOs.General;
+using DynamicForm.BLL.DTOs.User;
 
 namespace DynamicForm.Controllers;
 

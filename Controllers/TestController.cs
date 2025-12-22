@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using DynamicForm.Services;
-using DynamicForm.Models.DTOs;
+using DynamicForm.BLL.Contracts;
+using DynamicForm.BLL.DTOs.Form;
 
 namespace DynamicForm.Controllers;
 

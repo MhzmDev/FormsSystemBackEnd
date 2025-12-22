@@ -1,5 +1,7 @@
-﻿using DynamicForm.Models.DTOs;
-using DynamicForm.Services;
+﻿using DynamicForm.BLL.Contracts;
+using DynamicForm.BLL.DTOs.Form;
+using DynamicForm.BLL.DTOs.General;
+using DynamicForm.BLL.DTOs.Submissions.RejectionReasons;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;

@@ -1,4 +1,4 @@
-# Authentication & Authorization Error Messages
+﻿# Authentication & Authorization Error Messages
 
 ## Overview
 This document describes all authentication and authorization error responses in the Dynamic Forms API.
@@ -42,7 +42,7 @@ Authorization: Bearer {expired_token}
 ```json
 {
   "success": false,
-  "message": "????? ?????? ??? ??????. ???? ????? ?????",
+  "message": "انتهاء صلاحيه رمز الوصول. من فضلك قم بتحديث رمزك",
   "messageEn": "Access token has expired. Please refresh your token",
   "error": "Unauthorized"
 }
@@ -61,7 +61,7 @@ Authorization: Bearer {expired_token}
 ```json
 {
   "success": false,
-  "message": "????? ????? ??? ????",
+  "message": "رمز التحديث غير صحيح",
   "messageEn": "Invalid token signature",
   "error": "SecurityTokenInvalidSignatureException"
 }

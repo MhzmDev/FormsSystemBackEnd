@@ -1,9 +1,12 @@
-﻿using DynamicForm.Models.DTOs;
-using DynamicForm.Services;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using DynamicForm.BLL.Contracts;
+using DynamicForm.BLL.DTOs.General;
+using DynamicForm.BLL.DTOs.Submissions;
+using DynamicForm.BLL.DTOs.Form;
+using DynamicForm.BLL.DTOs.Submissions.RejectionReasons;
 
 namespace DynamicForm.Controllers
 {

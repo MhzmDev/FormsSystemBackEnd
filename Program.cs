@@ -1,10 +1,11 @@
-﻿using DynamicForm.Authorization;
-using DynamicForm.Data;
-using DynamicForm.Filters;
+﻿using DynamicForm.BLL.Contracts;
+using DynamicForm.BLL.DTOs.Filters;
+using DynamicForm.BLL.Services;
+using DynamicForm.DAL;
+using DynamicForm.DAL.Models.Configuration;
+using DynamicForm.DAL.Models.Entities;
 using DynamicForm.Middleware;
-using DynamicForm.Models.Configuration;
-using DynamicForm.Models.Entities;
-using DynamicForm.Services;
+using DynamicForm.Middleware.Authorization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;

@@ -1,6 +1,7 @@
-﻿using DynamicForm.Models.DTOs;
-using DynamicForm.Models.Entities;
-using DynamicForm.Services;
+﻿using DynamicForm.BLL.Contracts;
+using DynamicForm.BLL.DTOs.General;
+using DynamicForm.BLL.DTOs.User;
+using DynamicForm.DAL.Models.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
