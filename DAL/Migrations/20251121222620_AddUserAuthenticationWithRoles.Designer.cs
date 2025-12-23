@@ -12,13 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace DynamicForm.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-<<<<<<<< HEAD:DAL/Migrations/20251017001517_Initial_FormStart.Designer.cs
-    [Migration("20251017001517_Initial_FormStart")]
-    partial class Initial_FormStart
-========
     [Migration("20251121222620_AddUserAuthenticationWithRoles")]
     partial class AddUserAuthenticationWithRoles
->>>>>>>> RefactoredVersion:DAL/Migrations/20251121222620_AddUserAuthenticationWithRoles.Designer.cs
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -142,13 +137,8 @@ namespace DynamicForm.Migrations
                         {
                             FieldId = 2,
                             DisplayOrder = 2,
-<<<<<<<< HEAD:DAL/Migrations/20251017001517_Initial_FormStart.Designer.cs
-                            FieldName = "referenceNo",
-                            FieldType = "text",
-========
                             FieldName = "age",
                             FieldType = "number",
->>>>>>>> RefactoredVersion:DAL/Migrations/20251121222620_AddUserAuthenticationWithRoles.Designer.cs
                             FormId = 1,
                             IsActive = true,
                             IsRequired = true,
@@ -158,14 +148,6 @@ namespace DynamicForm.Migrations
                         {
                             FieldId = 3,
                             DisplayOrder = 3,
-<<<<<<<< HEAD:DAL/Migrations/20251017001517_Initial_FormStart.Designer.cs
-                            FieldName = "customerName",
-                            FieldType = "text",
-                            FormId = 1,
-                            IsActive = true,
-                            IsRequired = true,
-                            Label = "اسم العميل"
-========
                             FieldName = "birthDate",
                             FieldType = "dropdown",
                             FormId = 1,
@@ -173,7 +155,6 @@ namespace DynamicForm.Migrations
                             IsRequired = true,
                             Label = "تاريخ الميلاد",
                             Options = "[\"\\u0623\\u0643\\u0628\\u0631 \\u0645\\u0646 20 \\u0633\\u0646\\u0629\",\"\\u0623\\u0635\\u063A\\u0631 \\u0645\\u0646 20 \\u0633\\u0646\\u0629\"]"
->>>>>>>> RefactoredVersion:DAL/Migrations/20251121222620_AddUserAuthenticationWithRoles.Designer.cs
                         },
                         new
                         {
@@ -230,11 +211,6 @@ namespace DynamicForm.Migrations
                             FieldType = "date",
                             FormId = 1,
                             IsActive = true,
-<<<<<<<< HEAD:DAL/Migrations/20251017001517_Initial_FormStart.Designer.cs
-                            IsRequired = true,
-                            Label = "تاريخ الإنشاء",
-                            ValidationRules = "{\"readOnly\":true}"
-========
                             IsRequired = false,
                             Label = "العنوان"
                         },
@@ -309,7 +285,6 @@ namespace DynamicForm.Migrations
                             IsRequired = true,
                             Label = "الالتزامات الشهرية",
                             ValidationRules = "{\"type\":\"number\",\"min\":0,\"step\":1}"
->>>>>>>> RefactoredVersion:DAL/Migrations/20251121222620_AddUserAuthenticationWithRoles.Designer.cs
                         });
                 });
 

@@ -8,11 +8,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace DynamicForm.Migrations
 {
     /// <inheritdoc />
-<<<<<<<< HEAD:DAL/Migrations/20251017001517_Initial_FormStart.cs
-    public partial class Initial_FormStart : Migration
-========
+
     public partial class Init_AddingTheFromBase : Migration
->>>>>>>> RefactoredVersion:DAL/Migrations/20251106132534_Init_AddingTheFromBase.cs
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -121,27 +118,12 @@ namespace DynamicForm.Migrations
             migrationBuilder.InsertData(
                 table: "Forms",
                 columns: new[] { "FormId", "CreatedBy", "CreatedDate", "Description", "IsActive", "ModifiedDate", "Name" },
-<<<<<<<< HEAD:DAL/Migrations/20251017001517_Initial_FormStart.cs
-                values: new object[] { 1, "النظام", new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "الحقول الإلزامية", true, null, "نموذج البيانات الأساسية" });
-========
                 values: new object[] { 1, "النظام", new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "نموذج لجمع البيانات الشخصية الأساسية", true, null, "نموذج البيانات الشخصية" });
->>>>>>>> RefactoredVersion:DAL/Migrations/20251106132534_Init_AddingTheFromBase.cs
-
             migrationBuilder.InsertData(
                 table: "FormFields",
                 columns: new[] { "FieldId", "DisplayOrder", "FieldName", "FieldType", "FormId", "IsActive", "IsRequired", "Label", "Options", "ValidationRules" },
                 values: new object[,]
                 {
-<<<<<<<< HEAD:DAL/Migrations/20251017001517_Initial_FormStart.cs
-                    { 1, 1, "id", "text", 1, true, true, "المعرف", null, "{\"type\":\"number\",\"readOnly\":true}" },
-                    { 2, 2, "referenceNo", "text", 1, true, true, "رقم المرجع", null, null },
-                    { 3, 3, "customerName", "text", 1, true, true, "اسم العميل", null, null },
-                    { 4, 4, "phoneNumber", "text", 1, true, true, "رقم الهاتف", null, "{\"pattern\":\"^[0-9\\u002B\\\\-\\\\s]\\u002B$\"}" },
-                    { 5, 5, "salary", "text", 1, true, true, "الراتب", null, "{\"type\":\"number\",\"min\":0}" },
-                    { 6, 6, "monthlySpent", "text", 1, true, true, "الالتزامات الشهريه", null, "{\"type\":\"number\",\"min\":0}" },
-                    { 7, 7, "status", "dropdown", 1, true, true, "الحالة", "[\"\\u062C\\u062F\\u064A\\u062F\",\"\\u0642\\u064A\\u062F \\u0627\\u0644\\u0645\\u0631\\u0627\\u062C\\u0639\\u0629\",\"\\u0645\\u0642\\u0628\\u0648\\u0644\",\"\\u0645\\u0631\\u0641\\u0648\\u0636\",\"\\u0645\\u0643\\u062A\\u0645\\u0644\"]", null },
-                    { 8, 8, "creationDate", "date", 1, true, true, "تاريخ الإنشاء", null, "{\"readOnly\":true}" }
-========
                     { 1, 1, "fullName", "text", 1, true, true, "الاسم الكامل", null, null },
                     { 2, 2, "age", "text", 1, true, true, "العمر", null, "{\"min\":1,\"max\":120,\"type\":\"number\"}" },
                     { 3, 3, "birthDate", "date", 1, true, true, "تاريخ الميلاد", null, null },
@@ -156,7 +138,6 @@ namespace DynamicForm.Migrations
                     { 12, 12, "hasMortgage", "dropdown", 1, true, true, "قرض عقاري", "[\"\\u0646\\u0639\\u0645\",\"\\u0644\\u0627\"]", null },
                     { 13, 13, "monthlySalary", "text", 1, true, true, "الراتب الشهري", null, "{\"type\":\"number\",\"min\":0}" },
                     { 14, 14, "monthlyCommitments", "text", 1, true, true, "الالتزامات الشهرية", null, "{\"type\":\"number\",\"min\":0}" }
->>>>>>>> RefactoredVersion:DAL/Migrations/20251106132534_Init_AddingTheFromBase.cs
                 });
 
             migrationBuilder.CreateIndex(
