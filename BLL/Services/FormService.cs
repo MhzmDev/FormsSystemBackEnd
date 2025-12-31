@@ -420,6 +420,10 @@ namespace DynamicForm.BLL.Services
             if (submission.Status == FormConstants.SubmissionStatus.Approved)
             {
                 await _notificationService.SendApprovalNotificationAsync(submission, submissionValues);
+            } // ✅ NEW: Send rejection notification if rejected
+            else if (submission.Status == FormConstants.SubmissionStatus.Rejected)
+            {
+                await _notificationService.SendRejectionNotificationAsync(submission, submissionValues);
             }
 
             return await _submissionService.GetSubmissionByIdAsync(submission.SubmissionId)
@@ -495,6 +499,10 @@ namespace DynamicForm.BLL.Services
             if (submission.Status == FormConstants.SubmissionStatus.Approved)
             {
                 await _notificationService.SendApprovalNotificationAsync(submission, submissionValues);
+            } // ✅ NEW: Send rejection notification if rejected
+            else if (submission.Status == FormConstants.SubmissionStatus.Rejected)
+            {
+                await _notificationService.SendRejectionNotificationAsync(submission, submissionValues);
             }
 
             return await _submissionService.GetSubmissionByIdAsync(submission.SubmissionId)

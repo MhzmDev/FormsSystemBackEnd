@@ -61,6 +61,45 @@ public class NotificationService : INotificationService
         }
     }
 
+    // ✅ NEW: Send rejection notification
+    public async Task SendRejectionNotificationAsync(FormSubmission submission, List<FormSubmissionValue> values)
+    {
+        try
+        {
+            var phoneValue = ExtractFieldValue(values, "phone", "mobile", "هاتف", "جوال");
+
+            if (phoneValue == null)
+            {
+                _logger.LogWarning("No phone number found for rejected submission {SubmissionId}", submission.SubmissionId);
+
+                return;
+            }
+
+            var fullName = ExtractFieldValue(values, "name", "fullname", "اسم") ?? "عميل محزم";
+
+            // Create subscriber if not exists
+            await _whatsAppService.CreateSubscriberAsync(phoneValue, fullName);
+
+            // Send rejection message with reason
+            var rejectionReason = submission.RejectionReason ?? "تم رفض طلبك";
+            var messageSent = await _whatsAppService.SendRejectionMessageAsync(phoneValue, rejectionReason);
+
+            if (messageSent)
+            {
+                _logger.LogInformation("WhatsApp rejection notification sent successfully for submission {SubmissionId} to {Phone}",
+                    submission.SubmissionId, phoneValue);
+            }
+            else
+            {
+                _logger.LogError("Failed to send WhatsApp rejection notification for submission {SubmissionId} to {Phone}",
+                    submission.SubmissionId, phoneValue);
+            }
+        } catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send rejection notification for submission {SubmissionId}", submission.SubmissionId);
+        }
+    }
+
     private string? ExtractFieldValue(List<FormSubmissionValue> values, params string[] searchTerms)
     {
         return values.FirstOrDefault(v => searchTerms.Any(term =>
