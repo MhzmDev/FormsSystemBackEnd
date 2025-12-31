@@ -1,4 +1,4 @@
-using DynamicForm.Models.DTOs.WhatsApp;
+﻿using DynamicForm.Models.DTOs.WhatsApp;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -319,6 +319,79 @@ namespace DynamicForm.Services
             } catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending WhatsApp template to {Phone}", phoneNumber);
+
+                return false;
+            }
+        }
+
+        // ✅ NEW: Send rejection notification via WhatsApp REST API
+        public async Task<bool> SendRejectionMessageAsync(string phoneNumber, string rejectionReason)
+        {
+            if (!_isConfigured)
+            {
+                _logger.LogWarning("WhatsApp service not configured. Skipping rejection message send for {Phone}", phoneNumber);
+
+                return false;
+            }
+
+            try
+            {
+                var formattedPhone = ValidateAndFormatPhoneNumber(phoneNumber);
+
+                var requestBody = new
+                {
+                    Token = _whatsAppToken,
+                    Mobile = formattedPhone,
+                    TemplateId = "6d9fdb63-4fdc-420e-9d97-09846175baf0",
+                    ParamsType = "0",
+                    Params = new List<string>(),
+                    Schedule = "",
+                    ObjectId = "123456",
+                    OrderId = "102565",
+                    Param1 = "any value"
+                };
+
+                var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = null
+                });
+
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                _logger.LogInformation("Sending WhatsApp rejection message to {Phone}. Reason: {Reason}",
+                    formattedPhone, rejectionReason);
+
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                var response = await _httpClient.PostAsync($"{_whatsAppBaseUrl}/sendtemplate", content, cts.Token);
+                var responseContent = await response.Content.ReadAsStringAsync();
+
+                if (response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("WhatsApp rejection message sent successfully to {Phone}. Response: {Response}",
+                        formattedPhone, responseContent);
+
+                    return true;
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to send WhatsApp rejection message to {Phone}. Status: {Status}, Response: {Response}",
+                        formattedPhone, response.StatusCode, responseContent);
+
+                    return false;
+                }
+            } catch (OperationCanceledException)
+            {
+                _logger.LogError("Timeout while sending WhatsApp rejection message to {Phone}", phoneNumber);
+
+                return false;
+            } catch (ObjectDisposedException)
+            {
+                _logger.LogError("HttpClient disposed while sending WhatsApp rejection message to {Phone}", phoneNumber);
+
+                return false;
+            } catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending WhatsApp rejection message to {Phone}", phoneNumber);
 
                 return false;
             }
