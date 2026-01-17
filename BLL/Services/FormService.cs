@@ -951,73 +951,68 @@ namespace DynamicForm.BLL.Services
             };
         }
 
-        // ✅ NEW: Hybrid throttle check (cache + database)
+        // ✅ NEW: Hybrid throttle check (cache + database) - allows 2 submissions per 24 hours
         private async Task CheckSubmissionThrottleAsync(string phoneNumber, int formId)
         {
-            // TODO: Add admin bypass check here if needed
-            // if (currentUser.IsAdmin) return;
-
+            const int MaxSubmissionsPerDay = 2;
             var cacheKey = $"submission_throttle_{phoneNumber}_{formId}";
+            var cutoffTime = DateTime.Now.AddHours(-24);
+
+            List<DateTime> recentSubmissions;
 
             // Fast path: Check memory cache first
-            if (_cache.TryGetValue<DateTime>(cacheKey, out var lastSubmissionFromCache))
+            if (_cache.TryGetValue<List<DateTime>>(cacheKey, out var cachedSubmissions))
             {
-                var timeRemaining = TimeSpan.FromHours(24) - (DateTime.Now - lastSubmissionFromCache);
+                // Filter to only submissions within last 24 hours
+                recentSubmissions = cachedSubmissions
+                    .Where(dt => dt > cutoffTime)
+                    .OrderByDescending(dt => dt)
+                    .ToList();
+            }
+            else
+            {
+                // Slow path: Check database if not in cache
+                recentSubmissions = await _context.FormSubmissions
+                    .Join(
+                        _context.FormSubmissionValues,
+                        s => s.SubmissionId,
+                        v => v.SubmissionId,
+                        (s, v) => new { Submission = s, Value = v }
+                    )
+                    .Where(x =>
+                        x.Submission.FormId == formId &&
+                        x.Value.FieldNameAtSubmission == "phoneNumber" &&
+                        x.Value.FieldValue == phoneNumber &&
+                        x.Submission.SubmittedDate > cutoffTime)
+                    .OrderByDescending(x => x.Submission.SubmittedDate)
+                    .Select(x => x.Submission.SubmittedDate)
+                    .Take(MaxSubmissionsPerDay)
+                    .ToListAsync();
 
-                if (timeRemaining > TimeSpan.Zero)
+                // Cache the results if found
+                if (recentSubmissions.Any())
                 {
-                    var hours = (int)timeRemaining.TotalHours;
-                    var minutes = timeRemaining.Minutes;
-
-                    _logger.LogWarning(
-                        "Submission throttled for phone {Phone} on form {FormId}. Last submission: {LastSubmission}",
-                        phoneNumber, formId, lastSubmissionFromCache);
-
-                    throw new InvalidOperationException(
-                        $"عذراً، يمكنك تقديم طلب واحد فقط كل 24 ساعة. " +
-                        $"يمكنك تقديم طلب جديد بعد {hours} ساعة و {minutes} دقيقة. " +
-                        $"آخر طلب كان في {lastSubmissionFromCache:yyyy-MM-dd HH:mm}");
+                    _cache.Set(cacheKey, recentSubmissions, TimeSpan.FromHours(24));
                 }
             }
 
-            // Slow path: Check database if not in cache
-            var lastSubmission = await _context.FormSubmissions
-                .Join(
-                    _context.FormSubmissionValues,
-                    s => s.SubmissionId,
-                    v => v.SubmissionId,
-                    (s, v) => new { Submission = s, Value = v }
-                )
-                .Where(x =>
-                    x.Submission.FormId == formId &&
-                    x.Value.FieldNameAtSubmission == "phoneNumber" &&
-                    x.Value.FieldValue == phoneNumber)
-                .OrderByDescending(x => x.Submission.SubmittedDate)
-                .Select(x => x.Submission.SubmittedDate)
-                .FirstOrDefaultAsync();
-
-            if (lastSubmission != default)
+            // Check if user has reached the limit
+            if (recentSubmissions.Count >= MaxSubmissionsPerDay)
             {
-                var timeSinceLastSubmission = DateTime.Now - lastSubmission;
+                var oldestSubmission = recentSubmissions.Last();
+                var timeUntilNextAllowed = oldestSubmission.AddHours(24) - DateTime.Now;
+                var hours = (int)timeUntilNextAllowed.TotalHours;
+                var minutes = timeUntilNextAllowed.Minutes;
 
-                if (timeSinceLastSubmission < TimeSpan.FromHours(24))
-                {
-                    var timeRemaining = TimeSpan.FromHours(24) - timeSinceLastSubmission;
-                    var hours = (int)timeRemaining.TotalHours;
-                    var minutes = timeRemaining.Minutes;
+                _logger.LogWarning(
+                    "Submission throttled for phone {Phone} on form {FormId}. {Count} submissions in last 24 hours",
+                    phoneNumber, formId, recentSubmissions.Count);
 
-                    // Add to cache for future fast lookups
-                    _cache.Set(cacheKey, lastSubmission, TimeSpan.FromHours(24));
-
-                    _logger.LogWarning(
-                        "Submission throttled for phone {Phone} on form {FormId}. Last submission: {LastSubmission}",
-                        phoneNumber, formId, lastSubmission);
-
-                    throw new InvalidOperationException(
-                        $"عذراً، يمكنك تقديم طلب واحد فقط كل 24 ساعة. " +
-                        $"يمكنك تقديم طلب جديد بعد {hours} ساعة و {minutes} دقيقة. " +
-                        $"آخر طلب كان في {lastSubmission:yyyy-MM-dd HH:mm}");
-                }
+                throw new InvalidOperationException(
+                    $"عذراً، يمكنك تقديم {MaxSubmissionsPerDay} طلب فقط كل 24 ساعة. " +
+                    $"لقد قمت بتقديم {recentSubmissions.Count} طلب. " +
+                    $"يمكنك تقديم طلب جديد بعد {hours} ساعة و {minutes} دقيقة. " +
+                    $"آخر طلب كان في {recentSubmissions.First():yyyy-MM-dd HH:mm}");
             }
         }
 

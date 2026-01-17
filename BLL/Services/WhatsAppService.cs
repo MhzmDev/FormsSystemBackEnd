@@ -1,4 +1,4 @@
-﻿using DynamicForm.Models.DTOs.WhatsApp;
+﻿using DynamicForm.BLL.Contracts;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -68,6 +68,7 @@ namespace DynamicForm.Services
 
                 return cleanNumber;
             }
+
             // Validate Egypt numbers  
             else if (cleanNumber.StartsWith("20")) // Egypt
             {
@@ -78,16 +79,19 @@ namespace DynamicForm.Services
 
                 return cleanNumber;
             }
+
             // Handle KSA without country code
             else if (cleanNumber.StartsWith("5") && cleanNumber.Length == 9)
             {
                 return "966" + cleanNumber;
             }
+
             // Handle Egypt without country code
             else if (cleanNumber.StartsWith("01") && cleanNumber.Length == 11)
             {
                 return "20" + cleanNumber;
             }
+
             // Handle Egypt mobile without leading zero
             else if (cleanNumber.StartsWith("1") && cleanNumber.Length == 10)
             {
